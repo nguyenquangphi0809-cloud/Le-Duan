@@ -405,7 +405,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--memo")
     s.set_defaults(func=cmd_fund)
 
-    s = sub.add_parser("payout", help="rút Quỹ chủ sở hữu 51%")
+    s = sub.add_parser("payout", help="rút Quỹ chủ sở hữu 51%%")
     s.add_argument("amount", type=_money_arg, nargs="?", default=None)
     s.add_argument("--memo")
     s.set_defaults(func=cmd_payout)
