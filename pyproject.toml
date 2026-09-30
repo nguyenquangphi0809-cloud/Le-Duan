@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automaton51"
+version = "0.1.0"
+description = "AI tự kiếm tiền, tự sinh tồn, chia lợi nhuận 51% chủ sở hữu / 49% quỹ mở rộng (lấy cảm hứng từ Conway automaton)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["anthropic>=1.0"]
+
+[project.scripts]
+automaton51 = "automaton51.cli:main"
+
+[tool.setuptools]
+packages = ["automaton51", "automaton51.brain"]
+
+[tool.setuptools.package-data]
+automaton51 = ["PROTECTED.sha256"]
