@@ -97,6 +97,23 @@ sổ cái chỉ bảo đảm AI không bao giờ được tiêu vào phần 51 %
 
 ---
 
+## Bán cái gì? Playbook thị trường ngách
+
+Khảo sát thị trường (9/2026, kèm nguồn và bằng chứng nghiên cứu) nằm ở
+[`playbooks/README.md`](playbooks/README.md). Kết luận: ngách số 1 là **Trợ lý học thuật số**
+(định dạng, trích dẫn Thông tư 18, hiệu đính, tóm tắt tiếng Anh, số hoá tài liệu, luyện phản
+biện; không viết hộ), ngách mở rộng là **chatbot + chăm sóc nội dung cho cửa hàng nhỏ**.
+
+```bash
+python3 -m automaton51 playbook list
+python3 -m automaton51 init --mode live --playbook tro-ly-hoc-thuat --owner "Tên bạn" --contact "Zalo/email" --seed-usd 20
+python3 -m automaton51 playbook apply tro-ly-hoc-thuat      # áp cho tác nhân đã có
+```
+
+Playbook được chép vào `state/STRATEGY.md` (AI đọc lại mỗi nhịp tim) và đặt nhiệm vụ khai sinh.
+
+---
+
 ## Điều lệ kinh tế 51/49 hoạt động thế nào (được thực thi trong mã)
 
 ```

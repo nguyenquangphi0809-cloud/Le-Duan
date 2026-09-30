@@ -103,6 +103,67 @@ def _print_summary(state: StateDir, cfg: Config) -> None:
         print(f"  ✗ Lỗi gần nhất: {st['last_error']}")
 
 
+
+# ----------------------------------------------------------------------------- playbook
+PLAYBOOK_DIR = Path(__file__).resolve().parent.parent / "playbooks"
+
+
+def list_playbooks() -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    if not PLAYBOOK_DIR.exists():
+        return out
+    for path in sorted(PLAYBOOK_DIR.glob("*.md")):
+        if path.name.lower() == "readme.md":
+            continue
+        meta, _ = parse_playbook(path.read_text(encoding="utf-8"))
+        out.append((path.stem, meta.get("name", path.stem)))
+    return out
+
+
+def parse_playbook(text: str) -> tuple[dict, str]:
+    """Tách phần đầu '---' (name/genesis/market_language) khỏi thân playbook."""
+    meta: dict = {}
+    body = text
+    if text.startswith("---"):
+        parts = text.split("---", 2)
+        if len(parts) >= 3:
+            for line in parts[1].splitlines():
+                if ":" in line:
+                    k, _, v = line.partition(":")
+                    meta[k.strip()] = v.strip()
+            body = parts[2].lstrip("\n")
+    return meta, body
+
+
+def apply_playbook(state: StateDir, cfg: Config, name: str) -> Config:
+    path = PLAYBOOK_DIR / f"{name}.md"
+    if not path.exists():
+        names = ", ".join(n for n, _ in list_playbooks()) or "(không có)"
+        sys.exit(f"Không có playbook '{name}'. Có sẵn: {names}")
+    meta, body = parse_playbook(path.read_text(encoding="utf-8"))
+    if meta.get("genesis"):
+        cfg.genesis_prompt = meta["genesis"]
+    if meta.get("market_language"):
+        cfg.market_language = meta["market_language"]
+    cfg.save(state.config_path)
+    state.strategy_path.write_text(body.strip() + "\n", encoding="utf-8")
+    return cfg
+
+
+def cmd_playbook(args, state: StateDir) -> int:
+    if args.pb_cmd == "list":
+        items = list_playbooks()
+        if not items:
+            print("Chưa có playbook nào trong thư mục playbooks/.")
+        for stem, name in items:
+            print(f"- {stem}: {name}")
+        print("Áp dụng: automaton51 playbook apply <tên>  |  khi khai sinh: automaton51 init --playbook <tên>")
+        return 0
+    cfg = _load(state)
+    apply_playbook(state, cfg, args.name)
+    print(f"✓ Đã áp playbook '{args.name}': STRATEGY.md và nhiệm vụ khai sinh đã cập nhật (AI đọc ở lượt tiếp theo).")
+    return 0
+
 # ----------------------------------------------------------------------------- lệnh
 def cmd_init(args, state: StateDir) -> int:
     if state.exists() and not args.force:
@@ -114,6 +175,9 @@ def cmd_init(args, state: StateDir) -> int:
     if args.model:
         cfg.model_normal = args.model
     cfg.save(state.config_path)
+    if args.playbook:
+        cfg = apply_playbook(state, cfg, args.playbook)
+        print(f"  Playbook: {args.playbook} -> STRATEGY.md + nhiệm vụ khai sinh")
     ledger = Ledger(state.ledger_path, lock_path=state.lock_path)
     if args.seed_usd and args.seed_usd > ZERO:
         ledger.deposit(args.seed_usd, memo="Vốn mồi ban đầu từ chủ sở hữu")
@@ -359,8 +423,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--genesis", help="nhiệm vụ khai sinh")
     s.add_argument("--model", help="model cho tầng normal (mặc định claude-opus-5-5)")
     s.add_argument("--port", type=int, default=8451)
+    s.add_argument("--playbook", help="tên playbook trong thư mục playbooks/ (xem: automaton51 playbook list)")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
+
+    s = sub.add_parser("playbook", help="liệt kê / áp playbook thị trường ngách cho tác nhân")
+    ps = s.add_subparsers(dest="pb_cmd", required=True)
+    ps.add_parser("list", help="liệt kê playbook có sẵn")
+    ap = ps.add_parser("apply", help="chép playbook vào STRATEGY.md và đặt nhiệm vụ khai sinh")
+    ap.add_argument("name")
+    s.set_defaults(func=cmd_playbook)
 
     s = sub.add_parser("run", help="chạy vòng lặp nhịp tim + tác nhân")
     s.add_argument("--ticks", type=int, default=None, help="số nhịp rồi dừng (mặc định chạy mãi)")
