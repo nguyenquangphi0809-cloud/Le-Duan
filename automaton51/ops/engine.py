@@ -31,13 +31,56 @@ from . import templates as T
 from .docx_tools import QAResult, qa_check
 from .facebook import FacebookPublisher, launch_kit_posts
 from .fulfillment import FulfillmentError
-from .intake import COMPLAINT_WORDS, Intent, _has_any, classify
+from .intake import COMPLAINT_WORDS, Intent, _has_any, classify, fold
 from .mail import InboundEmail, MailClient, OutboundEmail, addressed_to, strip_quoted
 from .orders import Order, OrderStore, estimate_pages
 from .outreach import OutreachStore, given_name
 from .payments import BankTransaction, PaymentSource, find_code, vietqr_url
 
 MAX_ATTEMPTS = 3
+INFRA_ALERT_EVERY_S = 12 * 3600  # nhắc chủ sở hữu về sự cố hạ tầng tối đa 2 lần/ngày
+
+INFRA_ADVICE = {
+    "billing": ("Hết tiền API Claude",
+                "Tài khoản API Claude đã hết tiền nên AI tạm ngừng xử lý đơn (đơn KHÔNG bị huỷ, khách KHÔNG bị hoàn tiền).\n"
+                "Việc cần làm: nạp thêm tại https://platform.claude.com/settings/billing (nên bật Auto reload để tự nạp).\n"
+                "Nạp xong, AI tự làm tiếp ở nhịp sau. Nếu muốn ghi sổ khoản nạp: automaton51 fund <số USD>."),
+    "auth": ("Khoá API Claude bị từ chối",
+             "Khoá API Claude không còn hợp lệ (bị xoá, hết hạn hoặc sai) nên AI tạm ngừng xử lý đơn.\n"
+             "Việc cần làm: tạo khoá mới tại https://platform.claude.com/settings/keys, rồi bấm đúp "
+             "deploy\\lenh-nhanh-windows.bat, chọn 6 (đổi thông tin) và dán khoá mới."),
+    "transient": ("Không kết nối được máy chủ Claude",
+                  "Mất mạng hoặc máy chủ Claude đang quá tải/bảo trì. AI giữ nguyên đơn và tự thử lại mỗi vài phút.\n"
+                  "Thường không cần làm gì; nếu kéo dài, kiểm tra Internet của máy đang chạy AI."),
+}
+
+
+def _sender_matches(customer_name: str, content: str) -> bool:
+    """Tên khách (ít nhất 2 chữ) xuất hiện đầy đủ trong nội dung chuyển khoản (ngân hàng thường tự ghi tên người chuyển)."""
+    name = [t for t in re.split(r"[^a-z0-9]+", fold(customer_name or "")) if t]
+    words = set(re.split(r"[^a-z0-9]+", fold(content or "")))
+    return len(name) >= 2 and all(t in words for t in name)
+
+
+def infra_problem(exc: BaseException) -> Optional[str]:
+    """Lỗi do hạ tầng (không phải do đơn hàng): 'billing' | 'auth' | 'transient' | None."""
+    status = getattr(exc, "status_code", None)
+    text = str(exc).lower()
+    body = getattr(exc, "body", None)
+    etype = ""
+    if isinstance(body, dict):
+        err = body.get("error") if isinstance(body.get("error"), dict) else body
+        etype = str(err.get("type", "") or "").lower()
+    if status == 402 or etype == "billing_error" or "credit balance" in text:
+        return "billing"
+    if status in (401, 403) or etype in ("authentication_error", "permission_error"):
+        return "auth"
+    if status in (408, 409, 429, 500, 502, 503, 504, 529) or etype in (
+            "rate_limit_error", "overloaded_error", "api_error", "timeout_error"):
+        return "transient"
+    if type(exc).__name__ in ("APIConnectionError", "APITimeoutError") or isinstance(exc, (ConnectionError, TimeoutError)):
+        return "transient"
+    return None
 PREAUTH_USD = D("3")
 VN_OFFSET_HOURS = 7
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +94,10 @@ def _day(ts: float) -> str:
 
 def _vn_hour(ts: float) -> int:
     return (time.gmtime(ts).tm_hour + VN_OFFSET_HOURS) % 24
+
+
+class InfraPause(Exception):
+    """Dừng xử lý đơn vì sự cố hạ tầng (hết tiền API, sai khoá, mất mạng)."""
 
 
 class Operations:
@@ -184,11 +231,55 @@ class Operations:
             self.orders.mark_tx(tx.id)
             code = find_code(tx.content, codes)
             if not code:
+                guess = self._guess_order(tx, now)
+                if guess is not None and _sender_matches(guess.customer_name, tx.content):
+                    self.orders.event(guess, f"khớp giao dịch thiếu mã đơn theo số tiền và tên người chuyển: {tx.content[:80]}")
+                    self._record_payment(guess, tx, now)
+                    matched += 1
+                    continue
                 self._count("unmatched_tx")
+                if guess is not None:  # có thể là khách quên ghi mã: nhờ chủ sở hữu xác nhận một lần
+                    self._ask_owner_to_match(guess, tx, now)
                 continue  # tiền không có mã đơn: không phải doanh thu kinh doanh, không ghi sổ
             self._record_payment(self.orders.get(code), tx, now)
             matched += 1
         return matched
+
+    def _guess_order(self, tx: BankTransaction, now: float) -> Optional[Order]:
+        """Đơn duy nhất đang chờ thanh toán đúng số tiền này (còn hạn báo giá, cộng 1 ngày)."""
+        cands = [o for o in self.orders.by_status("quoted")
+                 if o.price_vnd - o.paid_vnd == tx.amount_vnd and now <= o.quote_expires_at + 86400]
+        return cands[0] if len(cands) == 1 else None
+
+    def _ask_owner_to_match(self, order: Order, tx: BankTransaction, now: float) -> None:
+        pending = dict(self.state.kv_get("unmatched_candidates", {}) or {})
+        pending[order.code] = {"id": tx.id, "amount": tx.amount_vnd, "content": tx.content[:200], "ts": now}
+        self.state.kv_set("unmatched_candidates", pending)
+        if self.cfg.notify_email:
+            self._send(self.cfg.notify_email, f"[CẦN BẠN] Tiền vào thiếu mã đơn — có thể là đơn {order.code}",
+                       f"Tài khoản nhận tiền vừa nhận {T.fmt_vnd(tx.amount_vnd)}, nội dung \"{tx.content[:200]}\", "
+                       f"nhưng không ghi mã đơn. Số tiền trùng với đơn {order.code} của {order.customer_name or order.customer_email}.\n\n"
+                       f"Nếu đúng là khách này: bấm đúp deploy\\lenh-nhanh-windows.bat, chọn T, nhập {order.code} "
+                       f"(máy Mac/Linux: automaton51 paid {order.code}). AI sẽ xử lý đơn ngay sau đó.\n"
+                       f"Nếu không phải (tiền cá nhân): không cần làm gì.\n\n-- automaton51", kind="owner")
+
+    def record_manual_payment(self, code: str, amount_vnd: Optional[int] = None) -> Order:
+        """Chủ sở hữu xác nhận một khoản tiền (thiếu mã đơn) là của đơn này."""
+        order = self.orders.get(code)
+        if order is None:
+            raise ValueError(f"Không có đơn {code}")
+        pending = dict(self.state.kv_get("unmatched_candidates", {}) or {})
+        cand = pending.pop(code, None)
+        if amount_vnd is None and cand is None:
+            raise ValueError(f"Chưa thấy giao dịch nào chờ khớp với đơn {code}. Nếu chắc chắn đã nhận tiền, ghi kèm số tiền "
+                             f"(lệnh: automaton51 paid {code} --amount <số đồng>).")
+        now = self.clock()
+        tx = BankTransaction(id=cand["id"] if cand else f"manual:{code}:{int(now)}",
+                             amount_vnd=int(amount_vnd if amount_vnd is not None else cand["amount"]),
+                             content=f"chủ sở hữu xác nhận cho đơn {code}")
+        self.state.kv_set("unmatched_candidates", pending)
+        self._record_payment(order, tx, now)
+        return self.orders.get(code)
 
     def _record_payment(self, order: Order, tx: BankTransaction, now: float) -> None:
         usd = D(Decimal(tx.amount_vnd) / Decimal(self.cfg.vnd_per_usd))
@@ -425,7 +516,8 @@ class Operations:
             return
         action = (f"Việc cần làm (duy nhất): chuyển lại {T.fmt_vnd(refund_vnd)} cho người đã chuyển khoản với nội dung "
                   f"{order.code} (xem sao kê ngân hàng; email khách: {order.customer_email}).\n"
-                  f"Sau khi chuyển, chạy lệnh để ghi sổ và báo khách:\n  automaton51 refund {order.code}"
+                  f"Sau khi chuyển, ghi sổ và báo khách: bấm đúp deploy\\lenh-nhanh-windows.bat, chọn 3, nhập {order.code}\n"
+                  f"(máy Mac/Linux: automaton51 refund {order.code})"
                   if refund_vnd else "Không cần chuyển tiền. Hệ thống đã phản hồi khách.")
         self._send(to, f"[CẦN BẠN] Đơn {order.code}: hoàn tiền {T.fmt_vnd(refund_vnd)}" if refund_vnd else f"[THÔNG BÁO] Đơn {order.code}",
                    f"{reason}\n\n{action}\n\n-- automaton51", kind="owner")
@@ -449,9 +541,23 @@ class Operations:
                 else:
                     self._error(f"không đủ tiền vận hành để xử lý đơn {order.code}")
                     break
-            self._process(order, now)
+            try:
+                self._process(order, now)
+            except InfraPause:
+                break  # hạ tầng có sự cố: dừng xử lý đơn ở nhịp này, thử lại nhịp sau
             done += 1
         return done
+
+    def _infra_alert(self, kind: str, detail: str, now: float) -> None:
+        self._error(f"hạ tầng ({kind}): {detail[:200]}")
+        last = self.state.kv_get(f"infra_alert:{kind}", 0) or 0
+        if now - float(last) < INFRA_ALERT_EVERY_S or not self.cfg.notify_email:
+            return
+        title, advice = INFRA_ADVICE[kind]
+        prefix = "[CẦN BẠN]" if kind in ("billing", "auth") else "[THÔNG BÁO]"
+        self._send(self.cfg.notify_email, f"{prefix} {title}", f"{advice}\n\nChi tiết kỹ thuật: {detail[:500]}\n\n-- automaton51",
+                   kind="owner")
+        self.state.kv_set(f"infra_alert:{kind}", now)
 
     def _process(self, order: Order, now: float) -> None:
         is_rev = order.status == "revision"
@@ -474,6 +580,12 @@ class Operations:
         except FulfillmentError as exc:
             qa = QAResult(False, [f"lỗi xử lý: {exc}"])
         except Exception as exc:  # noqa: BLE001
+            kind = infra_problem(exc)
+            if kind is not None:  # không phải lỗi của đơn: giữ đơn, không tính lượt, báo chủ sở hữu
+                order.attempts -= 1
+                self.orders.event(order, f"tạm hoãn ({kind}): {str(exc)[:160]}", status="revision" if is_rev else "paid")
+                self._infra_alert(kind, str(exc), now)
+                raise InfraPause(kind) from exc
             qa = QAResult(False, [f"lỗi hệ thống: {type(exc).__name__}: {exc}"])
         self._charge_capped(D(self.cfg.code_exec_usd_per_order), "tool", f"Môi trường chạy mã đơn {order.code}")
         order.qa = {"passed": qa.passed, "issues": qa.issues, "metrics": qa.metrics}
@@ -603,15 +715,18 @@ class Operations:
                  f"  Thư xin phép gửi danh bạ: {counts.get('outreach_sent', 0)} · Đồng ý: {counts.get('outreach_yes', 0)} · Từ chối nhận: {counts.get('unsubscribed', 0)}",
                  f"  Bài Facebook: {counts.get('fb_posts', 0)}", "",
                  "Sổ cái (USD):",
-                 f"  Quỹ CHỦ SỞ HỮU 51%: {fmt(b['owner'], 2)} (đã nhận tổng {fmt(t['owner_received'], 2)}) — bạn có thể chuyển số này sang tài khoản cá nhân rồi chạy: automaton51 payout",
+                 f"  Quỹ CHỦ SỞ HỮU 51%: {fmt(b['owner'], 2)} (đã nhận tổng {fmt(t['owner_received'], 2)}) — tiền đã nằm trong tài khoản nhận tiền của bạn; khi chuyển phần này sang tài khoản cá nhân, ghi sổ bằng lenh-nhanh-windows.bat mục 4 (hoặc lệnh: automaton51 payout)",
                  f"  Quỹ MỞ RỘNG 49%: {fmt(b['growth'], 2)} · Ví vận hành: {fmt(b['operating'], 2)}",
                  f"  Tổng doanh thu: {fmt(t['revenue'], 2)} · Chi phí vận hành: {fmt(t['operating_costs'], 2)}", ""]
         if pending:
             lines.append("VIỆC CẦN BẠN (chỉ chuyển tiền hoàn lại):")
             for o in pending:
-                lines.append(f"  - Đơn {o.code}: hoàn {T.fmt_vnd(o.qa['refund_vnd'])} cho người chuyển khoản nội dung {o.code}, rồi chạy: automaton51 refund {o.code}")
+                lines.append(f"  - Đơn {o.code}: hoàn {T.fmt_vnd(o.qa['refund_vnd'])} cho người chuyển khoản nội dung {o.code}, rồi ghi sổ bằng lenh-nhanh-windows.bat mục 3 (hoặc lệnh: automaton51 refund {o.code})")
         else:
             lines.append("Không có việc nào cần bạn quyết định.")
+        if b["operating"] < self.cfg.low_threshold:
+            lines += ["", f"Lưu ý: ví vận hành còn {fmt(b['operating'], 2)}. Hãy chắc rằng tài khoản API Claude còn tiền "
+                          "(https://platform.claude.com/settings/billing, nên bật Auto reload)."]
         errs = self.state.kv_get("ops_errors", []) or []
         recent = [e for e in errs if float(e[0]) >= since]
         if recent:

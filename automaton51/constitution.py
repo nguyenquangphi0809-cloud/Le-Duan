@@ -62,11 +62,9 @@ ECONOMIC CHARTER (immutable, enforced in code, you cannot change it):
 
 
 def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    """Băm nội dung với xuống dòng chuẩn hoá (CRLF -> LF), để bản tải bằng git trên Windows vẫn khớp niêm phong."""
+    data = Path(path).read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def compute_manifest(root: Path = REPO_ROOT, files: tuple[str, ...] = PROTECTED_FILES) -> dict[str, str]:

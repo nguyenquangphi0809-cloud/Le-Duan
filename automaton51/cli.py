@@ -189,6 +189,9 @@ def cmd_init(args, state: StateDir) -> int:
     return 0
 
 
+EXIT_ALREADY_RUNNING = 75  # tệp chạy-trên-windows.bat dựa vào mã này để không khởi động lặp
+
+
 def cmd_run(args, state: StateDir) -> int:
     cfg = _load(state)
     _require_integrity()
@@ -201,12 +204,20 @@ def cmd_run(args, state: StateDir) -> int:
         clock = VirtualClock(start=max(float(state.kv_get("clock_now", 0) or 0), time.time()))
     else:
         clock = RealClock()
+    try:
+        state.claim_process()
+    except RuntimeError as exc:
+        print(f"⏸ {exc}")
+        return EXIT_ALREADY_RUNNING
     auto = Automaton(state, cfg, brain, clock=clock)
     server = None
     if args.serve:
         from .server import start_background
-        server, _ = start_background(state, cfg, args.port, host=args.host)
-        print(f"🌐 Dashboard: http://{'localhost' if args.host in ('127.0.0.1', 'localhost') else args.host}:{args.port or cfg.dashboard_port}/  (cửa hàng: /store)")
+        try:
+            server, _ = start_background(state, cfg, args.port, host=args.host)
+            print(f"🌐 Dashboard: http://{'localhost' if args.host in ('127.0.0.1', 'localhost') else args.host}:{args.port or cfg.dashboard_port}/  (cửa hàng: /store)")
+        except OSError as exc:  # cổng bận: vẫn chạy kinh doanh, chỉ thiếu bảng điều khiển
+            print(f"⚠ Không mở được bảng điều khiển ({exc}); tác nhân vẫn chạy bình thường.")
     print(f"▶ Chạy '{cfg.name}' ({cfg.mode}, {'đồng hồ ảo' if isinstance(clock, VirtualClock) else 'thời gian thật'}). Ctrl+C để dừng.")
     try:
         rep = auto.run(max_ticks=args.ticks)
@@ -449,21 +460,30 @@ def cmd_setup(args, state: StateDir) -> int:
     cfg = Config.load(state.config_path) if state.exists() else Config(revenue_webhook_secret=secrets.token_hex(16))
     print("== Cài đặt vận hành tự động (một lần) ==")
     print("Bạn chỉ cần chỉ định tài khoản nhận tiền và các khoá kết nối. Mọi việc khác chạy tự động.\n")
-    cfg.email_address = (args.email or cfg.email_address or _ask("Gmail dùng cho kinh doanh")).lower()
+    old_email = cfg.email_address
+    cfg.email_address = (args.email or _ask("Gmail dùng cho kinh doanh", old_email)).strip().lower()
     if not cfg.email_address or "@" not in cfg.email_address:
         sys.exit("Cần địa chỉ Gmail hợp lệ (--email).")
     local, _, domain = cfg.email_address.partition("@")
     tag = args.alias_tag or "hocthuat"
-    cfg.email_alias = (args.alias or cfg.email_alias or f"{local}+{tag}@{domain}").lower()
-    cfg.owner_name = args.owner or cfg.owner_name or _ask("Tên bạn (ký tên trong thư, ví dụ: TS. Nguyễn Văn A)")
+    if args.alias or not cfg.email_alias or cfg.email_address != old_email:
+        cfg.email_alias = (args.alias or f"{local}+{tag}@{domain}").lower()
+    cfg.owner_name = args.owner or _ask("Tên bạn (ký tên trong thư, ví dụ: TS. Nguyễn Văn A)", cfg.owner_name)
     cfg.business_name = args.business or cfg.business_name
     cfg.owner_contact = cfg.email_alias
-    cfg.owner_notify_email = args.notify_email or cfg.owner_notify_email or cfg.email_address
+    if args.notify_email:
+        cfg.owner_notify_email = args.notify_email
+    elif not cfg.owner_notify_email or cfg.owner_notify_email == old_email:
+        cfg.owner_notify_email = cfg.email_address
     print("\n-- Tài khoản nhận tiền (việc duy nhất bạn tự chỉ định) --")
-    bank = (args.bank or cfg.bank_id or _ask("Ngân hàng (vcb, tcb, mbbank, acb, bidv, vietinbank, vpbank, tpbank... hoặc BIN 6 số)")).lower()
+    bank = (args.bank or _ask("Ngân hàng (vcb, tcb, mbbank, acb, bidv, vietinbank, vpbank, tpbank... hoặc BIN 6 số)",
+                              cfg.bank_id)).strip().lower()
     cfg.bank_id = BANK_BINS.get(bank.replace(" ", ""), bank)
-    cfg.bank_account_number = args.account or cfg.bank_account_number or _ask("Số tài khoản (KHÔNG nên trùng số điện thoại)")
-    cfg.bank_account_name = (args.account_name or cfg.bank_account_name or _ask("Tên chủ tài khoản (in hoa, không dấu)")).upper()
+    account = args.account or _ask("Số tài khoản (KHÔNG nên trùng số điện thoại)", cfg.bank_account_number)
+    cfg.bank_account_number = "".join(account.split()).replace(".", "").replace("-", "")
+    from .ops.intake import fold
+    raw_name = args.account_name or _ask("Tên chủ tài khoản (ví dụ: NGUYEN VAN A)", cfg.bank_account_name)
+    cfg.bank_account_name = " ".join(fold(raw_name).upper().split())
     if args.facebook_page_id:
         cfg.facebook_page_id = args.facebook_page_id
     cfg.mode = "live"
@@ -477,18 +497,34 @@ def cmd_setup(args, state: StateDir) -> int:
 
     print("\n-- Khoá kết nối (lưu vào tệp .env trong thư mục state, quyền 600, không đưa lên GitHub) --")
     env_values = {}
-    for var, prompt in ((S.ENV_ANTHROPIC, "Khoá API Anthropic (console.anthropic.com)"),
-                        (S.ENV_EMAIL_PASSWORD, "Mật khẩu ứng dụng Gmail (16 ký tự, myaccount.google.com/apppasswords)"),
-                        (S.ENV_SEPAY_TOKEN, "API token SePay (my.sepay.vn, mục API Access) — Enter để bỏ qua"),
+    for var, prompt in ((S.ENV_ANTHROPIC, "Khoá API Claude (platform.claude.com/settings/keys, bắt đầu bằng sk-ant-)"),
+                        (S.ENV_EMAIL_PASSWORD, "Mật khẩu ứng dụng Gmail (16 chữ, myaccount.google.com/apppasswords)"),
+                        (S.ENV_SEPAY_TOKEN, "API token SePay, để AI tự thấy tiền khách chuyển (my.sepay.vn > Cấu hình Công ty > API Access) — chưa có thì Enter, làm sau"),
                         (S.ENV_FACEBOOK_TOKEN, "Page access token Facebook — Enter để bỏ qua")):
-        val = S.get(var) or _ask(prompt, secret=True)
+        current = S.get(var)
+        hint = f" [đang có {S.mask(current)} — Enter để giữ]" if current else ""
+        val = (_ask(prompt + hint, secret=True) or current or "").strip()
+        if var == S.ENV_EMAIL_PASSWORD:
+            val = val.replace(" ", "")  # Google hiển thị dạng "abcd efgh ijkl mnop"
         if val:
             env_values[var] = val
             os.environ[var] = val
     _write_env(state.root / ".env", env_values)
+    if S.get(S.ENV_FACEBOOK_TOKEN) and not cfg.facebook_page_id:
+        page_id = _ask("ID Trang Facebook (dãy số, xem ở phần Giới thiệu của Trang) — Enter để bỏ qua").strip()
+        if page_id:
+            cfg.facebook_page_id = page_id
+            cfg.save(state.config_path)
     ledger = Ledger(state.ledger_path, lock_path=state.lock_path)
-    if args.seed_usd and ledger.balance("operating") <= ZERO and not ledger.entries:
-        ledger.deposit(args.seed_usd, memo="Vốn mồi (tương ứng tiền nạp API Anthropic)")
+    seed = args.seed_usd
+    if seed is None and not ledger.entries:
+        ans = _ask("Số tiền bạn đã nạp vào tài khoản API Claude, tính bằng USD (vốn mồi)", "20")
+        try:
+            seed = _money_arg(ans) if ans else None
+        except argparse.ArgumentTypeError:
+            seed = None
+    if seed and ledger.balance("operating") <= ZERO and not ledger.entries:
+        ledger.deposit(seed, memo="Vốn mồi (tương ứng tiền nạp API Claude)")
     problems = cfg.validate()
     print("\n✓ Đã lưu cấu hình." if not problems else "\n⚠ Còn thiếu:\n  - " + "\n  - ".join(problems))
     from .ops.payments import vietqr_url
@@ -496,9 +532,13 @@ def cmd_setup(args, state: StateDir) -> int:
     print(f"  Mã QR mẫu (mở bằng trình duyệt, quét thử bằng app ngân hàng để kiểm tra đúng tên và số tài khoản):")
     print(f"    {vietqr_url(cfg.bank_id, cfg.bank_account_number, cfg.bank_account_name, 10000, 'HTTHU01')}")
     print(f"  Khoá đã có: " + ", ".join(f"{k}={S.mask(S.get(k))}" for k in S.ALL))
-    print("\nBước tiếp theo:\n  1) automaton51 doctor        (kiểm tra mọi kết nối)"
-          "\n  2) automaton51 outreach import danh-ba.csv   (tuỳ chọn: CSV xuất từ contacts.google.com)"
-          "\n  3) automaton51 run --serve   (chạy mãi; hoặc cài dịch vụ 24/7, xem deploy/)")
+    if state.running_pid():
+        state.request_restart()
+        print("  ↻ AI đang chạy sẽ tự khởi động lại trong vài phút để dùng thông tin mới.")
+    if not getattr(args, "from_install", False):
+        print("\nBước tiếp theo:\n  1) automaton51 doctor        (kiểm tra mọi kết nối)"
+              "\n  2) automaton51 outreach import danh-ba.csv   (tuỳ chọn: CSV xuất từ contacts.google.com)"
+              "\n  3) automaton51 run --serve   (chạy mãi; hoặc cài dịch vụ 24/7, xem deploy/)")
     return 0 if not problems else 1
 
 
@@ -530,19 +570,33 @@ def cmd_doctor(args, state: StateDir) -> int:
     if S.get(S.ENV_ANTHROPIC):
         try:
             import anthropic
-            m = anthropic.Anthropic().models.retrieve(cfg.fulfillment_model)
-            line(True, f"Anthropic API: truy cập được {m.id}")
+            client = anthropic.Anthropic()
+            m = client.models.retrieve(cfg.fulfillment_model)
+            # 1 token với model rẻ nhất (~0,00001 USD) để biết tài khoản có tiền hay chưa
+            client.messages.create(model=cfg.model_critical, max_tokens=1, messages=[{"role": "user", "content": "ping"}])
+            line(True, f"Claude API: khoá đúng, tài khoản có tiền, dùng được {m.id}")
         except Exception as exc:  # noqa: BLE001
-            line(False, f"Anthropic API: {exc}")
+            from .ops.engine import infra_problem
+            hint = {"billing": "tài khoản API chưa có tiền — nạp tại https://platform.claude.com/settings/billing",
+                    "auth": "khoá sai hoặc đã bị xoá — tạo khoá mới tại https://platform.claude.com/settings/keys",
+                    "transient": "không kết nối được máy chủ Claude — kiểm tra Internet rồi thử lại"}.get(infra_problem(exc) or "")
+            line(False, f"Claude API: {hint} ({str(exc)[:150]})" if hint else f"Claude API: {exc}")
     if cfg.email_address and S.get(S.ENV_EMAIL_PASSWORD):
         from .ops.mail import GmailClient
         g = GmailClient(cfg.email_address, S.get(S.ENV_EMAIL_PASSWORD), cfg.email_alias, cfg.order_code_prefix,
                         cfg.imap_host, cfg.imap_port, cfg.smtp_host, cfg.smtp_port, from_name=cfg.business_name)
+        import imaplib
+        import smtplib
         for name, fn in (("Gmail IMAP", g.check_login), ("Gmail SMTP", g.check_smtp)):
             try:
                 line(True, f"{name}: {fn()}")
             except Exception as exc:  # noqa: BLE001
-                line(False, f"{name}: {exc} (bật xác minh 2 bước, tạo mật khẩu ứng dụng)")
+                auth = isinstance(exc, (imaplib.IMAP4.error, smtplib.SMTPAuthenticationError)) or \
+                    any(w in str(exc).lower() for w in ("authenticat", "credentials", "password"))
+                hint = ("sai địa chỉ Gmail hoặc mật khẩu ứng dụng — bật xác minh 2 bước rồi tạo lại tại "
+                        "https://myaccount.google.com/apppasswords" if auth else
+                        "không kết nối được máy chủ Gmail — kiểm tra Internet/tường lửa")
+                line(False, f"{name}: {hint} ({str(exc)[:150]})")
     if cfg.payment_provider == "sepay" and S.get(S.ENV_SEPAY_TOKEN):
         from .ops.payments import SePaySource
         try:
@@ -573,7 +627,10 @@ def cmd_outreach(args, state: StateDir) -> int:
     from .ops.outreach import OutreachStore, parse_contacts_csv
     store = OutreachStore(state)
     if args.out_cmd == "import":
-        rows = parse_contacts_csv(Path(args.csv).read_text(encoding="utf-8-sig", errors="ignore"))
+        csv_path = Path(args.csv.strip().strip('"'))
+        if not csv_path.is_file():
+            sys.exit(f"Không thấy tệp {csv_path}. Xuất danh bạ tại https://contacts.google.com (Xuất > Google CSV) rồi thử lại.")
+        rows = parse_contacts_csv(csv_path.read_text(encoding="utf-8-sig", errors="ignore"))
         counts = store.import_rows(rows, own_addresses=[cfg.email_address, cfg.email_alias])
         print(f"✓ Đã nhập {len(rows)} liên hệ có email. Nhóm A (người giới thiệu): {counts['A']} · "
               f"nhóm B (khách tiềm năng quen): {counts['B']} · nhóm C (không gửi): {counts['C']} · bỏ qua: {counts['skipped']}")
@@ -601,6 +658,17 @@ def cmd_orders(args, state: StateDir) -> int:
     return 0
 
 
+def cmd_paid(args, state: StateDir) -> int:
+    cfg = _load(state)
+    ops = _ops_for_cli(state, cfg)
+    try:
+        order = ops.record_manual_payment(args.code.upper(), amount_vnd=args.amount)
+    except ValueError as exc:
+        sys.exit(str(exc))
+    print(f"✓ Đã ghi nhận thanh toán cho đơn {order.code} (trạng thái: {order.status}). AI sẽ xử lý ở nhịp tới.")
+    return 0
+
+
 def cmd_refund(args, state: StateDir) -> int:
     cfg = _load(state)
     ops = _ops_for_cli(state, cfg)
@@ -615,6 +683,125 @@ def cmd_refund(args, state: StateDir) -> int:
 def cmd_demo_ops(args, state: StateDir) -> int:
     from .ops.demo import run_demo
     return run_demo(verbose=not args.quiet)
+
+
+def _pip_install(req: Path) -> bool:
+    import subprocess
+    base = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-r", str(req)]
+    for extra in ([], ["--user"]):
+        if subprocess.run(base + extra).returncode == 0:
+            return True
+    return False
+
+
+def _windows_startup_script(run_bat: Path) -> bytes:
+    """Tệp .cmd đặt trong thư mục Khởi động: mở AI trong cửa sổ thu nhỏ mỗi lần đăng nhập Windows."""
+    return (f'@echo off\r\nchcp 65001 >nul\r\nstart "automaton51" /min "{run_bat}"\r\n').encode("utf-8")
+
+
+def _launch_agent_plist(repo: Path, python: str, state_dir: Path) -> str:
+    """LaunchAgent cho macOS: chạy khi đăng nhập, tự bật lại nếu dừng."""
+    from xml.sax.saxutils import escape as x
+    args = [python, "-m", "automaton51", "--state", str(state_dir), "run", "--serve"]
+    items = "".join(f"\n    <string>{x(a)}</string>" for a in args)
+    log = x(str(state_dir / "automaton51.log"))
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>{LAUNCH_AGENT_LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>{items}
+  </array>
+  <key>WorkingDirectory</key><string>{x(str(repo))}</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUTF8</key><string>1</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>StandardOutPath</key><string>{log}</string>
+  <key>StandardErrorPath</key><string>{log}</string>
+</dict>
+</plist>
+"""
+
+
+LAUNCH_AGENT_LABEL = "vn.automaton51"
+
+
+def cmd_install(args, state: StateDir) -> int:
+    """Cài đặt trọn gói: thư viện -> hỏi thông tin (setup) -> kiểm tra (doctor) -> tự chạy khi bật máy -> chạy ngay."""
+    import subprocess
+    repo = Path(__file__).resolve().parent.parent
+    state_dir = state.root.resolve()
+    print("=================== CÀI ĐẶT automaton51 ===================\n")
+    print("[1/5] Cài thư viện cần thiết (anthropic)...")
+    if not _pip_install(repo / "requirements.txt"):
+        sys.exit("✗ Không cài được thư viện. Kiểm tra kết nối Internet rồi chạy lại tệp cài đặt.")
+    print("\n[2/5] Thông tin của bạn. Mục nào đã có sẵn thì bấm Enter để giữ nguyên.")
+    print("      Khi dán khoá/mật khẩu, màn hình sẽ KHÔNG hiện gì (để bảo mật) — cứ dán (chuột phải hoặc Ctrl+V) rồi Enter.\n")
+    ns = argparse.Namespace(email=None, alias=None, alias_tag=None, owner=None, business=None, notify_email=None, bank=None,
+                            account=None, account_name=None, payment_provider=None, facebook_page_id=None, seed_usd=None,
+                            from_install=True)
+    cmd_setup(ns, state)
+    print("\n[3/5] Kiểm tra kết nối...\n")
+    try:
+        doctor_ok = cmd_doctor(argparse.Namespace(offline=False), state) == 0
+    except SystemExit:
+        doctor_ok = False
+    if os.name == "nt":
+        run_bat = repo / "deploy" / "chay-tren-windows.bat"
+        startup = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+        print("\n[4/5] Cho AI tự chạy mỗi khi bật máy...")
+        try:
+            startup.mkdir(parents=True, exist_ok=True)
+            (startup / "automaton51.cmd").write_bytes(_windows_startup_script(run_bat))
+            print(f"  ✓ Đã thêm vào thư mục Khởi động của Windows ({startup})")
+        except OSError as exc:
+            print(f"  ✗ Không thêm được ({exc}). Bạn có thể tự bấm đúp {run_bat} sau mỗi lần bật máy.")
+        if _ask("  Tắt chế độ ngủ khi cắm sạc để AI chạy liên tục? (C/k)", "C").lower().startswith("c"):
+            r = subprocess.run(["powercfg", "/change", "standby-timeout-ac", "0"], capture_output=True)
+            print("  ✓ Đã tắt chế độ ngủ khi cắm sạc." if r.returncode == 0 else
+                  "  ✗ Không đổi được; vào Settings > System > Power và đặt Sleep = Never.")
+        print("\n[5/5] Khởi động AI...")
+        if doctor_ok:
+            # Chuỗi lệnh (không phải danh sách) để giữ ngoặc kép quanh tiêu đề cửa sổ của lệnh start.
+            subprocess.Popen(f'cmd /c start "automaton51" /min "{run_bat}"', cwd=str(repo))
+            print("  ✓ AI đang chạy trong một cửa sổ thu nhỏ trên thanh tác vụ. Bảng điều khiển: http://localhost:8451")
+        else:
+            print("  ! Còn mục chưa đạt ở bước 3. Sửa xong, bấm đúp deploy\\lenh-nhanh-windows.bat, chọn 6 (kiểm tra) rồi 8 (chạy).")
+    elif sys.platform == "darwin":
+        agents = Path.home() / "Library" / "LaunchAgents"
+        plist = agents / f"{LAUNCH_AGENT_LABEL}.plist"
+        print("\n[4/5] Cho AI tự chạy mỗi khi đăng nhập máy Mac...")
+        try:
+            agents.mkdir(parents=True, exist_ok=True)
+            plist.write_text(_launch_agent_plist(repo, sys.executable, state_dir), encoding="utf-8")
+            print(f"  ✓ Đã tạo {plist}")
+        except OSError as exc:
+            print(f"  ✗ Không tạo được ({exc}).")
+        print("  Để máy không ngủ khi cắm sạc: System Settings > Battery (hoặc Energy) > bật 'Prevent automatic sleeping'.")
+        print("\n[5/5] Khởi động AI...")
+        if doctor_ok and plist.exists():
+            subprocess.run(["launchctl", "unload", str(plist)], capture_output=True)
+            r = subprocess.run(["launchctl", "load", "-w", str(plist)], capture_output=True, text=True)
+            print("  ✓ AI đang chạy nền. Bảng điều khiển: http://localhost:8451" if r.returncode == 0 else
+                  f"  ✗ launchctl báo lỗi: {r.stderr.strip()}. Chạy tay: {sys.executable} -m automaton51 --state {state_dir} run --serve")
+        else:
+            print(f"  ! Còn mục chưa đạt ở bước 3. Sửa xong, chạy: {sys.executable} -m automaton51 --state {state_dir} doctor")
+    else:
+        print("\n[4/5] Tự chạy 24/7 trên máy chủ Linux: xem deploy/README.md (systemd).")
+        print(f"[5/5] Chạy ngay: {sys.executable} -m automaton51 --state {state_dir} run --serve   (bảng điều khiển http://localhost:8451)")
+    if doctor_ok:
+        print("\nXONG. Mỗi sáng bạn nhận một email báo cáo. Chỉ khi có email \"[CẦN BẠN]\" mới phải làm việc "
+              "(hoàn tiền cho khách hoặc nạp thêm tiền API).")
+    else:
+        print("\nCHƯA XONG: sửa các mục có dấu ✗ ở bước 3 (xem mục \"Xử lý sự cố\" trong HUONG-DAN-CAI-DAT.md), rồi chạy lại "
+              "tệp cài đặt — mục nào đã đúng chỉ cần bấm Enter.")
+    return 0 if doctor_ok else 3
 
 # ----------------------------------------------------------------------------- parser
 def build_parser() -> argparse.ArgumentParser:
@@ -743,10 +930,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--all", action="store_true")
     s.set_defaults(func=cmd_orders)
 
+    s = sub.add_parser("paid", help="xác nhận khoản tiền khách chuyển thiếu mã đơn là của đơn này")
+    s.add_argument("code")
+    s.add_argument("--amount", type=int, default=None, help="số đồng (chỉ cần khi hệ thống chưa thấy giao dịch)")
+    s.set_defaults(func=cmd_paid)
+
     s = sub.add_parser("refund", help="ghi sổ sau khi BẠN đã chuyển tiền hoàn cho khách")
     s.add_argument("code")
     s.add_argument("--memo")
     s.set_defaults(func=cmd_refund)
+
+    sub.add_parser("install", help="cài đặt trọn gói: thư viện, thông tin, kiểm tra, tự chạy khi bật máy").set_defaults(func=cmd_install)
 
     s = sub.add_parser("demo-ops", help="chạy thử trọn luồng tự động bằng dữ liệu giả (không cần khoá, không tốn tiền)")
     s.add_argument("--quiet", action="store_true")
@@ -755,6 +949,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # màn hình Windows cũ: ký tự không in được thành "?" thay vì làm sập chương trình
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     load_dotenv(Path.cwd() / ".env")
     parser = build_parser()
     args = parser.parse_args(argv)

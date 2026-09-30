@@ -28,7 +28,7 @@
 2. **Phần "người" vẫn cần bạn** ở chế độ live: đăng sản phẩm lên các sàn/kênh, nhận tiền của
    khách (chuyển khoản, Stripe, PayPal, SePay/Casso…), và xác nhận doanh thu vào hệ thống
    (tự động qua webhook hoặc bằng một lệnh). AI không có tài khoản ngân hàng.
-3. **Chi phí là thật**: mỗi suy nghĩ tốn token Claude, hoá đơn tính ở console.anthropic.com.
+3. **Chi phí là thật**: mỗi suy nghĩ tốn token Claude, hoá đơn tính ở platform.claude.com.
    Mặc định có trần **5 USD/ngày** cho suy luận và công tắc tắt nguồn.
 4. Bạn chịu trách nhiệm về thuế, quy định của nền tảng và pháp luật nơi bạn kinh doanh.
    Hiến pháp cấm AI spam, lừa đảo, hứa hẹn sai — nhưng người ký hợp đồng là bạn.
@@ -124,19 +124,27 @@ Bật bằng `automaton51 setup`. Từ đó hệ thống tự chạy toàn bộ 
 | Tiếp nhận | Đọc thư gửi tới địa chỉ kinh doanh `ten+hocthuat@gmail.com`, **không đụng tới thư cá nhân** |
 | Sàng lọc | Từ chối lịch sự yêu cầu viết hộ, "hạ đạo văn", bịa số liệu; gửi checklist cho người xin |
 | Báo giá | Đếm trang, tính giá bằng bảng giá cố định trong mã, gửi mã QR VietQR có sẵn số tiền và mã đơn |
-| Thu tiền | Dò giao dịch qua SePay, khớp mã đơn, ghi doanh thu, chia **51 % / 49 %**; tiền cá nhân không có mã đơn bị bỏ qua |
+| Thu tiền | Dò giao dịch qua SePay, khớp mã đơn, ghi doanh thu, chia **51 % / 49 %**; khách quên ghi mã thì tự khớp theo đúng số tiền + tên người chuyển, không chắc thì email hỏi bạn; tiền cá nhân bị bỏ qua |
 | Làm việc | Claude xử lý tệp Word trong môi trường chạy mã (định dạng, tài liệu tham khảo, hiệu đính có Track Changes, tóm tắt tiếng Anh, câu hỏi phản biện + slide) |
-| Kiểm tra | Tự kiểm tra trước khi giao: không thêm nội dung, không làm mất chữ, hiệu đính phải có Track Changes, tóm tắt phải là tiếng Anh; không đạt thì làm lại, 3 lần vẫn không đạt thì báo khách sẽ hoàn tiền |
+| Kiểm tra | Tự kiểm tra trước khi giao: không thêm nội dung, không làm mất chữ, hiệu đính phải có Track Changes, tóm tắt phải là tiếng Anh; không đạt thì làm lại, 3 lần vẫn không đạt thì báo khách sẽ hoàn tiền; hết tiền API hay mất mạng thì giữ đơn chờ, không hoàn tiền |
 | Giao hàng | Gửi tệp kết quả và báo cáo thay đổi qua email; sửa miễn phí 1 lần trong 14 ngày |
 | Báo cáo | 8 giờ sáng mỗi ngày gửi bạn một email: tiền về, đơn, quỹ 51 % của bạn, việc cần làm |
 | Bảo mật | Xoá bản thảo sau 30 ngày; xoá tệp khỏi máy chủ Anthropic ngay sau khi xử lý; không lưu số điện thoại trong danh bạ |
 
-**Việc của bạn chỉ có ba:** (1) chỉ định tài khoản nhận tiền khi chạy `setup`; (2) một lần duy nhất tạo các khoá kết nối;
-(3) khi hệ thống gửi email "[CẦN BẠN] hoàn tiền" (hiếm), chuyển lại tiền cho khách rồi chạy `automaton51 refund <mã đơn>`.
+**Việc của bạn chỉ có ba:** (1) chỉ định tài khoản nhận tiền khi cài đặt; (2) một lần duy nhất tạo các khoá kết nối;
+(3) khi hệ thống gửi email "[CẦN BẠN]" (hiếm): chuyển hoàn tiền cho khách, xác nhận một khoản tiền khách quên ghi mã đơn,
+hoặc nạp thêm tiền Claude (bật Auto-reload thì không cần).
 
-### Cài đặt một lần (khoảng 30 phút)
+### Cài đặt một lần (khoảng 45 phút)
 
-1. **Claude:** tạo khoá API tại console.anthropic.com và nạp tiền (ví dụ 20 USD, chính là vốn mồi).
+> **Hướng dẫn từng bước kèm đường dẫn, dành cho người không rành máy tính: [HUONG-DAN-CAI-DAT.md](HUONG-DAN-CAI-DAT.md).**
+> Windows: tải ZIP, giải nén vào `C:\`, bấm đúp `deploy\cai-dat-windows.bat` — tệp tự cài Python, hỏi thông tin,
+> kiểm tra kết nối và cho AI tự chạy mỗi khi bật máy. Việc hằng ngày làm qua `deploy\lenh-nhanh-windows.bat`.
+
+Tóm tắt cho người rành kỹ thuật:
+
+1. **Claude:** nạp tiền tại platform.claude.com/settings/billing (ví dụ 20 USD, chính là vốn mồi; nên bật Auto-reload),
+   tạo khoá tại platform.claude.com/settings/keys.
 2. **Gmail:** bật xác minh 2 bước, tạo *mật khẩu ứng dụng* 16 ký tự tại myaccount.google.com/apppasswords.
 3. **SePay** (dò tiền về tự động): tạo tài khoản tại sepay.vn, liên kết tài khoản ngân hàng nhận tiền, tạo API token.
    SePay có gói miễn phí 500 giao dịch/tháng trong năm đầu cho cá nhân kinh doanh.

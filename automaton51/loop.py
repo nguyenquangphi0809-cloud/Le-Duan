@@ -201,6 +201,9 @@ class Automaton:
                     return rep
                 if max_ticks is not None and n >= max_ticks:
                     return rep
+                if self.state.consume_restart_request():
+                    self.log("↻ Cấu hình vừa thay đổi: thoát để trình bao khởi động lại với cấu hình mới.")
+                    return rep
                 self.clock.sleep(self._wait_seconds(rep))
         finally:
             self.state.release_process()

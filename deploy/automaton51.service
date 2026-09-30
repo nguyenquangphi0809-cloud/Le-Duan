@@ -1,5 +1,5 @@
 # Dịch vụ systemd để automaton51 chạy 24/7 trên máy chủ Linux (Ubuntu/Debian).
-# Cài: sửa đường dẫn /opt/Le-Duan nếu khác, rồi:
+# Cài: chạy trước  sudo bash deploy/cai-dat-mac-linux.sh  (tạo .venv, hỏi thông tin), sửa /opt/Le-Duan nếu khác, rồi:
 #   sudo cp deploy/automaton51.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now automaton51
 # Xem nhật ký: journalctl -u automaton51 -f
@@ -11,10 +11,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/Le-Duan
-ExecStart=/usr/bin/python3 -m automaton51 --state /opt/Le-Duan/state run --serve
+ExecStart=/opt/Le-Duan/.venv/bin/python -m automaton51 --state /opt/Le-Duan/state run --serve
 Restart=always
 RestartSec=30
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONUTF8=1
 
 [Install]
 WantedBy=multi-user.target
