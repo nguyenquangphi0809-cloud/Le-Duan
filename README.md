@@ -65,7 +65,7 @@ sống nhờ Quỹ mở rộng "cứu sinh", có lần chết). Thị trường 
 pip install -r requirements.txt                      # anthropic SDK
 cp .env.example .env && nano .env                    # ANTHROPIC_API_KEY=sk-ant-...
 python3 -m automaton51 init --mode live --name "Kiến-1" \
-    --owner "Nguyễn Quang Phi" --contact "zalo/email của bạn" --seed-usd 20 \
+    --owner "Nguyễn Quang Phi" --contact "email kinh doanh / Trang Facebook" --seed-usd 20 \
     --genesis "Làm web/app nhỏ, template, nội dung cho khách Việt Nam; thu tiền để sống; có lời thì mở rộng"
 python3 -m automaton51 run --serve                   # chạy mãi + dashboard http://localhost:8451
 ```
@@ -106,7 +106,7 @@ biện; không viết hộ), ngách mở rộng là **chatbot + chăm sóc nội
 
 ```bash
 python3 -m automaton51 playbook list
-python3 -m automaton51 init --mode live --playbook tro-ly-hoc-thuat --owner "Tên bạn" --contact "Zalo/email" --seed-usd 20
+python3 -m automaton51 init --mode live --playbook tro-ly-hoc-thuat --owner "Tên bạn" --contact "email / Trang Facebook" --seed-usd 20
 python3 -m automaton51 playbook apply tro-ly-hoc-thuat      # áp cho tác nhân đã có
 ```
 

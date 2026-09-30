@@ -1,7 +1,8 @@
 # 7 bài đăng Facebook tuần đầu (mỗi ngày một bài, mỗi bài một nỗi đau)
 
-Đăng lên trang cá nhân và 1–2 nhóm học viên cao học / nghiên cứu sinh / giảng viên trẻ.
-Luôn kết bằng lời mời nhận checklist miễn phí. Không đăng cùng một bài vào nhiều nhóm trong
+Đăng từ Trang Facebook, chia sẻ lên trang cá nhân và 1–2 nhóm học viên cao học / nghiên cứu
+sinh / giảng viên trẻ. Luôn kết bằng lời mời nhận checklist miễn phí qua link Google Form.
+Không ghi số điện thoại trong bài; khách nhắn Messenger của Trang hoặc gửi email. Không đăng cùng một bài vào nhiều nhóm trong
 cùng một giờ (tránh bị coi là spam).
 
 ## Ngày 1 — Câu chuyện thật

@@ -1,4 +1,7 @@
-# Kịch bản Zalo: tư vấn, báo giá, chốt cọc, giao hàng
+# Kịch bản tư vấn qua Messenger hoặc email: báo giá, chốt cọc, giao hàng
+
+Dùng cho tin nhắn gửi Trang Facebook và thư gửi email kinh doanh. Không chuyển khách sang số
+điện thoại hay Zalo cá nhân.
 
 ## 1. Chào và hỏi 5 câu (gửi ngay khi khách nhắn)
 > Chào bạn, cảm ơn bạn đã nhắn. Để báo giá chính xác, bạn cho mình biết:
@@ -18,7 +21,7 @@
 - "Đắt hơn trung tâm tin học" → Trung tâm chỉnh font; mình đối chiếu trích dẫn, thuật ngữ, cấu trúc theo chuẩn học thuật, và chịu trách nhiệm chuyên môn.
 
 ## 4. Chốt cọc
-> Bạn chuyển cọc 50 % ([số tiền]) vào [số tài khoản, tên, ngân hàng] với nội dung "[Tên khách] – [gói]". Nhận cọc là mình bắt đầu, giao đúng [ngày giờ].
+> Bạn chuyển cọc 50 % ([số tiền]) vào [số tài khoản không trùng số điện thoại, tên, ngân hàng] với nội dung "[Tên khách] – [gói]". Nhận cọc là mình bắt đầu, giao đúng [ngày giờ].
 
 ## 5. Giao hàng và thu phần còn lại
 > Mình gửi bản hoàn chỉnh + bản Track Changes + báo cáo những chỗ đã sửa. Bạn kiểm tra trong 2 ngày, cần chỉnh gì mình chỉnh miễn phí một lần. Phần còn lại [số tiền] bạn chuyển giúp mình sau khi hài lòng.

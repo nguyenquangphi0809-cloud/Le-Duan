@@ -1,4 +1,4 @@
-# Thư giới thiệu gửi khoa, bộ môn, tạp chí (email hoặc Zalo)
+# Thư giới thiệu gửi khoa, bộ môn, tạp chí (qua email)
 
 Kính gửi [Thầy/Cô + tên], [chức danh, đơn vị],
 
@@ -18,4 +18,4 @@ cũng sẵn sàng làm miễn phí một bản mẫu cho một luận văn của
 lượng trước.
 
 Trân trọng cảm ơn Thầy/Cô.
-[Tên bạn] – [số Zalo] – [email]
+[Tên bạn] – [Trang Facebook] – [email kinh doanh]
