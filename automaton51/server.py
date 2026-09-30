@@ -78,6 +78,9 @@ class Handler(BaseHTTPRequestHandler):
     # ---- POST ----
     def do_POST(self) -> None:  # noqa: N802
         url = urlparse(self.path)
+        if url.path == "/webhook/sepay":
+            self._sepay()
+            return
         if url.path != "/webhook/revenue":
             self._json(404, {"error": "not found"})
             return
@@ -105,6 +108,27 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(exc)})
             return
         self._json(200, {"ok": True, "duplicate": ev is None, "id": ev.id if ev else None})
+
+
+    def _sepay(self) -> None:
+        """SePay đẩy giao dịch về (xác thực: Authorization: Apikey <SEPAY_WEBHOOK_KEY>). Ghi vào hộp thanh toán để bộ vận hành khớp mã đơn."""
+        import os
+        key = (os.environ.get("SEPAY_WEBHOOK_KEY") or "").strip()
+        auth = (self.headers.get("Authorization") or "").strip()
+        if not key or not hmac.compare_digest(auth, f"Apikey {key}"):
+            self._json(401, {"success": False, "error": "unauthorized"})
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            self._json(400, {"success": False, "error": "bad json"})
+            return
+        if not isinstance(body, dict) or "id" not in body:
+            self._json(400, {"success": False, "error": "missing id"})
+            return
+        self.server.state.append_jsonl(self.server.state.root / "payments_inbox.jsonl", body)
+        self._json(200, {"success": True})
 
 
 # ----------------------------------------------------------------------------- render
@@ -194,14 +218,14 @@ def render_store(state: StateDir, cfg: Config) -> str:
 </main></body></html>"""
 
 
-def start_background(state: StateDir, cfg: Config, port: int | None = None, host: str = "0.0.0.0") -> tuple[DashboardServer, threading.Thread]:
+def start_background(state: StateDir, cfg: Config, port: int | None = None, host: str = "127.0.0.1") -> tuple[DashboardServer, threading.Thread]:
     server = DashboardServer((host, port or cfg.dashboard_port), state, cfg)
     thread = threading.Thread(target=server.serve_forever, name="automaton51-dashboard", daemon=True)
     thread.start()
     return server, thread
 
 
-def serve_forever(state: StateDir, cfg: Config, port: int | None = None, host: str = "0.0.0.0") -> None:
+def serve_forever(state: StateDir, cfg: Config, port: int | None = None, host: str = "127.0.0.1") -> None:
     server = DashboardServer((host, port or cfg.dashboard_port), state, cfg)
     try:
         server.serve_forever()

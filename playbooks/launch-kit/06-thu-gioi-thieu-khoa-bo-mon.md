@@ -9,7 +9,7 @@ bị trả về vì lỗi trình bày, trích dẫn và tóm tắt tiếng Anh, 
 Tôi xây dựng một dịch vụ hỗ trợ kỹ thuật cho bản thảo học thuật, gồm: định dạng theo mẫu
 của cơ sở đào tạo, chuẩn hoá tài liệu tham khảo và đối chiếu trích dẫn, hiệu đính ngôn ngữ
 (có Track Changes), tóm tắt tiếng Anh cho bài báo, số hoá tài liệu cũ và bộ câu hỏi luyện
-phản biện. Dịch vụ dùng công cụ AI để làm nhanh, có tôi trực tiếp kiểm tra, và tuyệt đối
+phản biện. Dịch vụ do trợ lý AI thực hiện, qua kiểm tra chất lượng tự động, tôi chịu trách nhiệm và xử lý mọi khiếu nại, và tuyệt đối
 không viết hộ nội dung khoa học.
 
 Nếu Thầy/Cô thấy phù hợp, tôi xin phép được gửi checklist "20 lỗi trình bày hay gặp" (miễn

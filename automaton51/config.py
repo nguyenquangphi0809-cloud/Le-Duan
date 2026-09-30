@@ -75,6 +75,46 @@ class Config:
     # Mô phỏng
     sim_seed: int = 42
     sim_tick_minutes: int = 30
+    agent_turn_interval_minutes: int = 0   # >0: AI marketing chỉ "nghĩ" tối đa 1 lượt mỗi khoảng này
+
+    # ---- Vận hành tự động hoàn toàn (ops): email -> báo giá -> thu tiền -> làm -> giao ----
+    ops_enabled: bool = False
+    ops_poll_seconds: int = 120
+    business_name: str = "Trợ lý học thuật số"
+    email_address: str = ""          # Gmail đăng nhập (mật khẩu ứng dụng ở biến môi trường)
+    email_alias: str = ""            # địa chỉ nhận khách, ví dụ ten+hocthuat@gmail.com
+    imap_host: str = "imap.gmail.com"
+    imap_port: int = 993
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 465
+    owner_notify_email: str = ""     # nhận báo cáo hằng ngày; trống = email_address
+    max_emails_per_day: int = 150
+    # Tài khoản nhận tiền: việc DUY NHẤT chủ sở hữu tự chỉ định
+    bank_id: str = ""                # mã VietQR của ngân hàng (vd: vcb, mbbank, tcb) hoặc BIN 6 số
+    bank_account_number: str = ""
+    bank_account_name: str = ""
+    payment_provider: str = "sepay"  # "sepay" (tự dò giao dịch) | "webhook" (chỉ nhận qua webhook)
+    vnd_per_usd: int = 26000
+    order_code_prefix: str = "HT"
+    quote_valid_days: int = 7
+    revision_days: int = 14
+    revision_limit: int = 1
+    retention_days: int = 30
+    orders_per_tick: int = 1
+    max_order_pages: int = 400
+    fulfillment_model: str = "claude-opus-5-5"
+    fulfillment_effort: str = "high"
+    intake_model: str = "claude-opus-5-5"
+    intake_effort: str = "low"
+    intake_llm_daily_limit: int = 200     # quá mức này (vd bị spam) thì chỉ dùng luật từ khoá, không tốn tiền
+    code_exec_usd_per_order: str = "0"   # 1.550 giờ/tháng miễn phí; vượt mức 0,05 USD/giờ
+    outreach_enabled: bool = True
+    outreach_daily_limit: int = 25
+    outreach_wait_days: int = 7
+    facebook_page_id: str = ""
+    graph_api_version: str = "v25.0"
+    facebook_posts_per_day: int = 1
+    digest_hour_utc: int = 1             # 8 giờ sáng giờ Việt Nam
 
     # ---- tiện ích ----
     @property
@@ -151,4 +191,16 @@ class Config:
             problems.append("low_threshold_usd phải lớn hơn critical_threshold_usd")
         if self.max_children < 0:
             problems.append("max_children không được âm")
+        if self.ops_enabled:
+            for name in ("email_address", "email_alias", "bank_id", "bank_account_number", "bank_account_name"):
+                if not str(getattr(self, name) or "").strip():
+                    problems.append(f"ops_enabled cần {name} (chạy: automaton51 setup)")
+            if self.payment_provider not in ("sepay", "webhook"):
+                problems.append("payment_provider phải là 'sepay' hoặc 'webhook'")
+            if self.vnd_per_usd <= 0:
+                problems.append("vnd_per_usd phải > 0")
         return problems
+
+    @property
+    def notify_email(self) -> str:
+        return self.owner_notify_email or self.email_address

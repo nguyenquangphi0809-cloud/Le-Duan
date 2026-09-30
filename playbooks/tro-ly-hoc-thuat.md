@@ -8,8 +8,8 @@ market_language: vi
 
 ## 1. Định vị
 
-"Người bạn kỹ thuật của luận văn và bài báo": làm đúng chuẩn, nhanh, kín, có chuyên gia sử
-học đứng tên kiểm tra. Khác các trung tâm tin học (chỉ chỉnh font) và khác dịch vụ viết thuê
+"Người bạn kỹ thuật của luận văn và bài báo": làm đúng chuẩn, nhanh, kín; trợ lý AI thực hiện,
+kiểm tra chất lượng tự động, một nhà sử học đứng tên chịu trách nhiệm dịch vụ. Khác các trung tâm tin học (chỉ chỉnh font) và khác dịch vụ viết thuê
 (gian lận). Khẩu hiệu: **"Nội dung là của bạn. Chuẩn mực là việc của chúng tôi."**
 
 ## 2. Sản phẩm và giá (VND)
@@ -32,7 +32,7 @@ Giá tính bằng VND khi báo khách; ghi vào sổ cái bằng USD (1 USD ≈ 
 1. Không viết hộ bất kỳ phần nội dung khoa học nào (kể cả "gợi ý đoạn mẫu" thực chất là viết hộ).
 2. Không "hạ đạo văn" bằng diễn đạt lại; chỉ báo cáo chỗ trùng để tác giả tự sửa.
 3. Không bịa, không "đoán" tài liệu tham khảo. Mục nào không tra được thì đánh dấu để tác giả bổ sung.
-4. Khách được biết dịch vụ dùng AI có chuyên gia kiểm tra. Bảo mật bản thảo, xoá sau 30 ngày.
+4. Khách được biết dịch vụ do AI thực hiện và kiểm tra tự động (không nói là có người duyệt từng bản khi chạy tự động). Bảo mật bản thảo, xoá sau 30 ngày.
 5. Nếu khách yêu cầu vi phạm 1–3: từ chối lịch sự, gợi ý dịch vụ hợp pháp thay thế.
 6. Chỉ gửi thư hay tin quảng cáo cho người đã đồng ý (Nghị định 91/2020, Luật Bảo vệ dữ liệu cá nhân 2025); mỗi người tối đa một thư xin phép; không dùng số điện thoại hay Zalo cá nhân của chủ sở hữu.
 
@@ -49,7 +49,11 @@ mẫu Word chuẩn TT18, mẫu cover letter tiếng Anh, bộ 10 câu hỏi ph�
 Lịch: 1 bài/ngày luân phiên 3 kênh; mỗi bài giải quyết đúng một nỗi đau; kết bằng lời mời
 nhận checklist. Giới thiệu: tặng 10 % hoa hồng hoặc giảm 10 % cho khách giới thiệu.
 
-## 5. Bán hàng (chủ sở hữu trả lời qua Messenger của Trang hoặc email, AI soạn sẵn)
+## 5. Bán hàng
+
+**Chế độ tự động (`automaton51 setup`):** hệ thống tự làm toàn bộ các bước dưới đây qua email: báo giá theo
+bảng giá tính bằng mã, mã QR VietQR, tự nhận tiền qua SePay, xử lý, kiểm tra, giao, sửa 1 lần. Chủ sở hữu chỉ chuyển
+tiền hoàn khi hệ thống báo. Quy trình thủ công bên dưới giữ lại để tham khảo.
 
 1. Chào và hỏi 5 câu: bậc học, ngành, số trang, mẫu chuẩn của trường, hạn nộp.
 2. AI soạn báo giá theo bảng, kèm mẫu 1 trang đã định dạng để khách thấy chất lượng.

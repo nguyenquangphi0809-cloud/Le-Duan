@@ -114,6 +114,71 @@ Playbook được chép vào `state/STRATEGY.md` (AI đọc lại mỗi nhịp t
 
 ---
 
+## Tự động hoàn toàn: bạn chỉ chỉ định tài khoản nhận tiền
+
+Bật bằng `automaton51 setup`. Từ đó hệ thống tự chạy toàn bộ chuỗi, không cần bạn quyết định từng việc:
+
+| Bước | Hệ thống tự làm |
+|---|---|
+| Tìm khách | Gửi **một** thư xin phép cho người quen trong danh bạ (tối đa 25 thư/ngày, 8–20 giờ), tự đăng 1 bài/ngày lên Trang Facebook |
+| Tiếp nhận | Đọc thư gửi tới địa chỉ kinh doanh `ten+hocthuat@gmail.com`, **không đụng tới thư cá nhân** |
+| Sàng lọc | Từ chối lịch sự yêu cầu viết hộ, "hạ đạo văn", bịa số liệu; gửi checklist cho người xin |
+| Báo giá | Đếm trang, tính giá bằng bảng giá cố định trong mã, gửi mã QR VietQR có sẵn số tiền và mã đơn |
+| Thu tiền | Dò giao dịch qua SePay, khớp mã đơn, ghi doanh thu, chia **51 % / 49 %**; tiền cá nhân không có mã đơn bị bỏ qua |
+| Làm việc | Claude xử lý tệp Word trong môi trường chạy mã (định dạng, tài liệu tham khảo, hiệu đính có Track Changes, tóm tắt tiếng Anh, câu hỏi phản biện + slide) |
+| Kiểm tra | Tự kiểm tra trước khi giao: không thêm nội dung, không làm mất chữ, hiệu đính phải có Track Changes, tóm tắt phải là tiếng Anh; không đạt thì làm lại, 3 lần vẫn không đạt thì báo khách sẽ hoàn tiền |
+| Giao hàng | Gửi tệp kết quả và báo cáo thay đổi qua email; sửa miễn phí 1 lần trong 14 ngày |
+| Báo cáo | 8 giờ sáng mỗi ngày gửi bạn một email: tiền về, đơn, quỹ 51 % của bạn, việc cần làm |
+| Bảo mật | Xoá bản thảo sau 30 ngày; xoá tệp khỏi máy chủ Anthropic ngay sau khi xử lý; không lưu số điện thoại trong danh bạ |
+
+**Việc của bạn chỉ có ba:** (1) chỉ định tài khoản nhận tiền khi chạy `setup`; (2) một lần duy nhất tạo các khoá kết nối;
+(3) khi hệ thống gửi email "[CẦN BẠN] hoàn tiền" (hiếm), chuyển lại tiền cho khách rồi chạy `automaton51 refund <mã đơn>`.
+
+### Cài đặt một lần (khoảng 30 phút)
+
+1. **Claude:** tạo khoá API tại console.anthropic.com và nạp tiền (ví dụ 20 USD, chính là vốn mồi).
+2. **Gmail:** bật xác minh 2 bước, tạo *mật khẩu ứng dụng* 16 ký tự tại myaccount.google.com/apppasswords.
+3. **SePay** (dò tiền về tự động): tạo tài khoản tại sepay.vn, liên kết tài khoản ngân hàng nhận tiền, tạo API token.
+   SePay có gói miễn phí 500 giao dịch/tháng trong năm đầu cho cá nhân kinh doanh.
+4. **Facebook** (tuỳ chọn): Trang của bạn và Page access token có quyền `pages_manage_posts`; bật trả lời nhanh
+   trong Messenger của Trang chỉ khách sang email, vì hệ thống chỉ xử lý qua email.
+5. Chạy:
+
+```bash
+pip install -r requirements.txt
+python3 -m automaton51 setup            # hỏi Gmail, tên bạn, NGÂN HÀNG + SỐ TÀI KHOẢN + TÊN CHỦ TK, các khoá (ẩn khi gõ)
+python3 -m automaton51 doctor           # kiểm tra Claude, Gmail, SePay, Facebook; in mã QR mẫu để bạn quét thử
+python3 -m automaton51 outreach import danh-ba.csv   # tuỳ chọn: CSV xuất từ contacts.google.com
+python3 -m automaton51 run --serve      # chạy mãi; chạy 24/7 xem deploy/README.md
+```
+
+Chưa có khoá vẫn xem được toàn bộ luồng bằng dữ liệu giả, không tốn tiền: `python3 -m automaton51 demo-ops`.
+
+Khoá được lưu trong `state/.env` (quyền 600, không bao giờ đưa lên GitHub). Nên dùng số tài khoản **không trùng số điện
+thoại**, vì số tài khoản hiện trên mã QR khách quét.
+
+### Chi phí dự kiến
+
+| Khoản | Mức |
+|---|---|
+| Claude xử lý một đơn | khoảng 0,3–3 USD tuỳ độ dài; bán 300.000–1.500.000 đ |
+| Claude đọc thư khách | khoảng 0,01 USD/thư, tối đa 200 thư/ngày được đọc bằng AI |
+| AI marketing | 1 lượt mỗi 6 giờ, trần 5 USD/ngày cho mọi chi phí AI của phần marketing |
+| Môi trường chạy mã | 1.550 giờ/tháng miễn phí, vượt mức 0,05 USD/giờ |
+| SePay | miễn phí 500 giao dịch/tháng năm đầu |
+| Máy chạy 24/7 | máy ở nhà: 0 đồng; máy chủ thuê: vài USD/tháng |
+
+### Giới hạn cần biết
+
+- Chưa tự trả lời Messenger, Zalo, bình luận hay đăng TikTok và nhóm Facebook: các nền tảng này không cho phép hoặc cần xét
+  duyệt riêng. Kênh bán tự động là email.
+- Kiểm tra tự động giảm sai sót nhưng không bằng người đọc kỹ. Vì vậy mọi thư đều nói rõ dịch vụ do AI thực hiện, hiệu
+  đính luôn để ở dạng Track Changes cho khách tự duyệt, và cam kết hoàn tiền nếu không đạt.
+- Bản thảo được gửi sang Anthropic (Hoa Kỳ) để xử lý; thư báo giá nói rõ điều này và khách đồng ý khi thanh toán. Khi quy
+  mô lớn, bạn nên hỏi luật sư về thủ tục chuyển dữ liệu cá nhân ra nước ngoài theo Luật Bảo vệ dữ liệu cá nhân 2025.
+
+---
+
 ## Điều lệ kinh tế 51/49 hoạt động thế nào (được thực thi trong mã)
 
 ```
@@ -221,8 +286,13 @@ automaton51/
   revenue.py       hộp thư doanh thu thật + thị trường mô phỏng
   catalog.py       sản phẩm / việc / nội dung        replication.py  tác nhân con
   server.py        dashboard, cửa hàng, webhook       cli.py          lệnh
+  ops/             vận hành tự động: mail.py (Gmail), payments.py (VietQR, SePay), orders.py (giá, đơn),
+                   intake.py (đọc thư, chặn viết hộ), fulfillment.py (Claude + skill docx/pptx), docx_tools.py
+                   (kiểm tra chất lượng), outreach.py (danh bạ đúng luật), facebook.py, engine.py (điều phối), demo.py
 constitution.md    hiến pháp 3 điều + điều lệ kinh tế 51/49
-tests/             42 test: bất biến sổ cái, 51/49, sinh tồn, policy, vòng lặp, webhook, bộ não
+playbooks/         khảo sát thị trường, playbook ngách, bộ khởi động marketing
+deploy/            chạy 24/7: systemd (Linux) và tệp .bat (Windows)
+tests/             82 test: sổ cái, 51/49, sinh tồn, policy, vòng lặp, webhook, bộ não, toàn bộ luồng vận hành tự động
 ```
 
 Chạy test: `python3 -m unittest discover -s tests -t .`

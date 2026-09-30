@@ -13,6 +13,6 @@
 | **Radar tài liệu (gói tháng)** | Theo dõi công bố mới theo đề tài, tóm tắt, gợi ý đọc hàng tuần | 300.000 đ/tháng | định kỳ |
 | **Combo nghiên cứu sinh** | Định dạng + tài liệu tham khảo + hiệu đính 2 chương + luyện phản biện | 3.000.000–5.000.000 đ | 7 ngày |
 
-**Cách làm việc:** gửi bản thảo qua email hoặc Google Drive → nhận báo giá và 1 trang mẫu miễn phí → cọc 50 % → nhận bài → thanh toán phần còn lại. Bản thảo được xoá sau 30 ngày.
+**Cách làm việc:** gửi bản thảo tới email dịch vụ → nhận báo giá tự động kèm mã QR → chuyển khoản đúng nội dung mã đơn → hệ thống tự nhận tiền, xử lý và gửi kết quả qua email → sửa miễn phí 1 lần trong 14 ngày. Bản thảo được xoá sau 30 ngày.
 
-**Cam kết:** dùng AI để làm nhanh, có chuyên gia sử học kiểm tra trước khi giao; không viết hộ, không bịa tài liệu, không "hạ đạo văn".
+**Cam kết:** do trợ lý AI thực hiện, mọi bản giao qua kiểm tra chất lượng tự động (không thêm nội dung, không làm mất chữ, hiệu đính có Track Changes để bạn duyệt); không đạt thì hoàn tiền 100 %; không viết hộ, không bịa tài liệu, không "hạ đạo văn".

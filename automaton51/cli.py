@@ -205,8 +205,8 @@ def cmd_run(args, state: StateDir) -> int:
     server = None
     if args.serve:
         from .server import start_background
-        server, _ = start_background(state, cfg, args.port)
-        print(f"🌐 Dashboard: http://localhost:{args.port or cfg.dashboard_port}/  (cửa hàng: /store)")
+        server, _ = start_background(state, cfg, args.port, host=args.host)
+        print(f"🌐 Dashboard: http://{'localhost' if args.host in ('127.0.0.1', 'localhost') else args.host}:{args.port or cfg.dashboard_port}/  (cửa hàng: /store)")
     print(f"▶ Chạy '{cfg.name}' ({cfg.mode}, {'đồng hồ ảo' if isinstance(clock, VirtualClock) else 'thời gian thật'}). Ctrl+C để dừng.")
     try:
         rep = auto.run(max_ticks=args.ticks)
@@ -346,8 +346,8 @@ def cmd_serve(args, state: StateDir) -> int:
     cfg = _load(state)
     from .server import serve_forever
     port = args.port or cfg.dashboard_port
-    print(f"🌐 Dashboard http://localhost:{port}/ · cửa hàng /store · webhook POST /webhook/revenue (secret trong config.json)")
-    serve_forever(state, cfg, port)
+    print(f"🌐 Dashboard http://{args.host}:{port}/ · cửa hàng /store · webhook POST /webhook/revenue, /webhook/sepay")
+    serve_forever(state, cfg, port, host=args.host)
     return 0
 
 
@@ -407,6 +407,215 @@ def cmd_resurrect(args, state: StateDir) -> int:
     return 0
 
 
+
+# ----------------------------------------------------------------------------- vận hành tự động
+BANK_BINS = {
+    "vietcombank": "970436", "vcb": "970436", "vietinbank": "970415", "icb": "970415", "bidv": "970418",
+    "agribank": "970405", "vba": "970405", "mb": "970422", "mbbank": "970422", "techcombank": "970407", "tcb": "970407",
+    "acb": "970416", "vpbank": "970432", "vpb": "970432", "tpbank": "970423", "tpb": "970423", "sacombank": "970403",
+    "stb": "970403", "vib": "970441", "shb": "970443", "hdbank": "970437", "hdb": "970437", "ocb": "970448", "msb": "970426",
+    "seabank": "970440", "eximbank": "970431", "lpbank": "970449", "namabank": "970428", "bacabank": "970409",
+}
+
+
+def _write_env(path: Path, values: dict) -> None:
+    existing: dict[str, str] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                k, _, v = line.partition("=")
+                existing[k.strip()] = v.strip()
+    existing.update({k: v for k, v in values.items() if v})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(f"{k}={v}\n" for k, v in existing.items()), encoding="utf-8")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def _ask(prompt: str, default: str = "", secret: bool = False) -> str:
+    if not sys.stdin.isatty():
+        return default
+    import getpass
+    suffix = f" [{default}]" if default and not secret else ""
+    val = getpass.getpass(f"{prompt}: ") if secret else input(f"{prompt}{suffix}: ")
+    return (val or default).strip()
+
+
+def cmd_setup(args, state: StateDir) -> int:
+    from .ops import secrets as S
+    state.ensure()
+    cfg = Config.load(state.config_path) if state.exists() else Config(revenue_webhook_secret=secrets.token_hex(16))
+    print("== Cài đặt vận hành tự động (một lần) ==")
+    print("Bạn chỉ cần chỉ định tài khoản nhận tiền và các khoá kết nối. Mọi việc khác chạy tự động.\n")
+    cfg.email_address = (args.email or cfg.email_address or _ask("Gmail dùng cho kinh doanh")).lower()
+    if not cfg.email_address or "@" not in cfg.email_address:
+        sys.exit("Cần địa chỉ Gmail hợp lệ (--email).")
+    local, _, domain = cfg.email_address.partition("@")
+    tag = args.alias_tag or "hocthuat"
+    cfg.email_alias = (args.alias or cfg.email_alias or f"{local}+{tag}@{domain}").lower()
+    cfg.owner_name = args.owner or cfg.owner_name or _ask("Tên bạn (ký tên trong thư, ví dụ: TS. Nguyễn Văn A)")
+    cfg.business_name = args.business or cfg.business_name
+    cfg.owner_contact = cfg.email_alias
+    cfg.owner_notify_email = args.notify_email or cfg.owner_notify_email or cfg.email_address
+    print("\n-- Tài khoản nhận tiền (việc duy nhất bạn tự chỉ định) --")
+    bank = (args.bank or cfg.bank_id or _ask("Ngân hàng (vcb, tcb, mbbank, acb, bidv, vietinbank, vpbank, tpbank... hoặc BIN 6 số)")).lower()
+    cfg.bank_id = BANK_BINS.get(bank.replace(" ", ""), bank)
+    cfg.bank_account_number = args.account or cfg.bank_account_number or _ask("Số tài khoản (KHÔNG nên trùng số điện thoại)")
+    cfg.bank_account_name = (args.account_name or cfg.bank_account_name or _ask("Tên chủ tài khoản (in hoa, không dấu)")).upper()
+    if args.facebook_page_id:
+        cfg.facebook_page_id = args.facebook_page_id
+    cfg.mode = "live"
+    cfg.ops_enabled = True
+    cfg.payment_provider = args.payment_provider or cfg.payment_provider or "sepay"
+    cfg.agent_turn_interval_minutes = cfg.agent_turn_interval_minutes or 360
+    cfg.name = cfg.name if cfg.name != "Automaton-51" else "Tro-ly-hoc-thuat"
+    cfg.save(state.config_path)
+    apply_playbook(state, cfg, "tro-ly-hoc-thuat")
+    cfg = Config.load(state.config_path)
+
+    print("\n-- Khoá kết nối (lưu vào tệp .env trong thư mục state, quyền 600, không đưa lên GitHub) --")
+    env_values = {}
+    for var, prompt in ((S.ENV_ANTHROPIC, "Khoá API Anthropic (console.anthropic.com)"),
+                        (S.ENV_EMAIL_PASSWORD, "Mật khẩu ứng dụng Gmail (16 ký tự, myaccount.google.com/apppasswords)"),
+                        (S.ENV_SEPAY_TOKEN, "API token SePay (my.sepay.vn, mục API Access) — Enter để bỏ qua"),
+                        (S.ENV_FACEBOOK_TOKEN, "Page access token Facebook — Enter để bỏ qua")):
+        val = S.get(var) or _ask(prompt, secret=True)
+        if val:
+            env_values[var] = val
+            os.environ[var] = val
+    _write_env(state.root / ".env", env_values)
+    ledger = Ledger(state.ledger_path, lock_path=state.lock_path)
+    if args.seed_usd and ledger.balance("operating") <= ZERO and not ledger.entries:
+        ledger.deposit(args.seed_usd, memo="Vốn mồi (tương ứng tiền nạp API Anthropic)")
+    problems = cfg.validate()
+    print("\n✓ Đã lưu cấu hình." if not problems else "\n⚠ Còn thiếu:\n  - " + "\n  - ".join(problems))
+    from .ops.payments import vietqr_url
+    print(f"  Địa chỉ nhận khách: {cfg.email_alias}")
+    print(f"  Mã QR mẫu (mở bằng trình duyệt, quét thử bằng app ngân hàng để kiểm tra đúng tên và số tài khoản):")
+    print(f"    {vietqr_url(cfg.bank_id, cfg.bank_account_number, cfg.bank_account_name, 10000, 'HTTHU01')}")
+    print(f"  Khoá đã có: " + ", ".join(f"{k}={S.mask(S.get(k))}" for k in S.ALL))
+    print("\nBước tiếp theo:\n  1) automaton51 doctor        (kiểm tra mọi kết nối)"
+          "\n  2) automaton51 outreach import danh-ba.csv   (tuỳ chọn: CSV xuất từ contacts.google.com)"
+          "\n  3) automaton51 run --serve   (chạy mãi; hoặc cài dịch vụ 24/7, xem deploy/)")
+    return 0 if not problems else 1
+
+
+def cmd_doctor(args, state: StateDir) -> int:
+    from .ops import secrets as S
+    from .ops.payments import vietqr_url
+    cfg = Config.load(state.config_path) if state.exists() else None
+    if cfg is None:
+        sys.exit("Chưa cài đặt. Chạy: automaton51 setup")
+    bad = 0
+
+    def line(ok, text):
+        nonlocal bad
+        print(("  ✓ " if ok else "  ✗ ") + text)
+        bad += 0 if ok else 1
+
+    print("== Kiểm tra hệ thống ==")
+    ok, probs = verify_integrity()
+    line(ok, "Hiến pháp và mô-đun 51/49 nguyên vẹn" if ok else "Niêm phong sai: " + "; ".join(probs))
+    probs = cfg.validate()
+    line(not probs, "Cấu hình hợp lệ" if not probs else "Cấu hình: " + "; ".join(probs))
+    line(cfg.ops_enabled, "Vận hành tự động đang BẬT" if cfg.ops_enabled else "Vận hành tự động đang TẮT (chạy automaton51 setup)")
+    for var in S.ALL:
+        optional = var in (S.ENV_FACEBOOK_TOKEN, S.ENV_SEPAY_WEBHOOK_KEY) or (var == S.ENV_SEPAY_TOKEN and cfg.payment_provider != "sepay")
+        if S.get(var) or not optional:
+            line(bool(S.get(var)), f"{var}: {S.mask(S.get(var))}")
+    if args.offline:
+        return 0 if bad == 0 else 3
+    if S.get(S.ENV_ANTHROPIC):
+        try:
+            import anthropic
+            m = anthropic.Anthropic().models.retrieve(cfg.fulfillment_model)
+            line(True, f"Anthropic API: truy cập được {m.id}")
+        except Exception as exc:  # noqa: BLE001
+            line(False, f"Anthropic API: {exc}")
+    if cfg.email_address and S.get(S.ENV_EMAIL_PASSWORD):
+        from .ops.mail import GmailClient
+        g = GmailClient(cfg.email_address, S.get(S.ENV_EMAIL_PASSWORD), cfg.email_alias, cfg.order_code_prefix,
+                        cfg.imap_host, cfg.imap_port, cfg.smtp_host, cfg.smtp_port, from_name=cfg.business_name)
+        for name, fn in (("Gmail IMAP", g.check_login), ("Gmail SMTP", g.check_smtp)):
+            try:
+                line(True, f"{name}: {fn()}")
+            except Exception as exc:  # noqa: BLE001
+                line(False, f"{name}: {exc} (bật xác minh 2 bước, tạo mật khẩu ứng dụng)")
+    if cfg.payment_provider == "sepay" and S.get(S.ENV_SEPAY_TOKEN):
+        from .ops.payments import SePaySource
+        try:
+            txs = SePaySource(S.get(S.ENV_SEPAY_TOKEN), cfg.bank_account_number, limit=5).fetch()
+            line(True, f"SePay: đọc được giao dịch ({len(txs)} giao dịch tiền vào gần nhất)")
+        except Exception as exc:  # noqa: BLE001
+            line(False, f"SePay: {exc}")
+    if cfg.facebook_page_id and S.get(S.ENV_FACEBOOK_TOKEN):
+        from .ops.facebook import FacebookPublisher
+        try:
+            line(True, "Facebook: " + FacebookPublisher(cfg.facebook_page_id, S.get(S.ENV_FACEBOOK_TOKEN), cfg.graph_api_version).check())
+        except Exception as exc:  # noqa: BLE001
+            line(False, f"Facebook: {exc}")
+    print("  i Mã QR mẫu: " + vietqr_url(cfg.bank_id, cfg.bank_account_number, cfg.bank_account_name, 10000, "HTTHU01"))
+    print("\nKết luận: " + ("sẵn sàng chạy (automaton51 run --serve)" if bad == 0 else f"còn {bad} mục cần sửa"))
+    return 0 if bad == 0 else 3
+
+
+def _ops_for_cli(state: StateDir, cfg: Config):
+    from .ops.engine import build_operations
+    from .catalog import Catalog
+    ledger = Ledger(state.ledger_path, lock_path=state.lock_path)
+    return build_operations(state, cfg, ledger, Catalog(state), time.time, log=print)
+
+
+def cmd_outreach(args, state: StateDir) -> int:
+    cfg = _load(state)
+    from .ops.outreach import OutreachStore, parse_contacts_csv
+    store = OutreachStore(state)
+    if args.out_cmd == "import":
+        rows = parse_contacts_csv(Path(args.csv).read_text(encoding="utf-8-sig", errors="ignore"))
+        counts = store.import_rows(rows, own_addresses=[cfg.email_address, cfg.email_alias])
+        print(f"✓ Đã nhập {len(rows)} liên hệ có email. Nhóm A (người giới thiệu): {counts['A']} · "
+              f"nhóm B (khách tiềm năng quen): {counts['B']} · nhóm C (không gửi): {counts['C']} · bỏ qua: {counts['skipped']}")
+        print("  Chỉ lưu tên, email và nhóm; không lưu số điện thoại. Có thể xoá tệp CSV sau bước này.")
+        print(f"  Hệ thống gửi tối đa {cfg.outreach_daily_limit} thư/ngày, 8–20 giờ, mỗi người đúng một thư xin phép.")
+        return 0
+    for k, v in sorted(store.stats().items()):
+        print(f"  {k}: {v}")
+    return 0
+
+
+def cmd_orders(args, state: StateDir) -> int:
+    cfg = _load(state)
+    from .ops.orders import OrderStore
+    from .ops.templates import fmt_vnd
+    orders = OrderStore(state, prefix=cfg.order_code_prefix).all()
+    if not args.all:
+        orders = [o for o in orders if o.status not in ("closed", "expired", "declined", "refunded")]
+    if not orders:
+        print("Không có đơn nào" + ("" if args.all else " đang mở (thêm --all để xem tất cả)") + ".")
+    for o in sorted(orders, key=lambda o: o.created_at):
+        print(f"{o.code}  {o.status:10s} {'+'.join(o.services):8s} {o.pages:4d} tr  {fmt_vnd(o.price_vnd):>12s}  "
+              f"đã trả {fmt_vnd(o.paid_vnd):>12s}  {o.customer_email or '(đã xoá)'}  {time.strftime('%d/%m %H:%M', time.localtime(o.updated_at))}"
+              + (f"\n      CẦN BẠN: {o.escalation}" if o.escalation and o.status in ('escalated', 'failed') else ""))
+    return 0
+
+
+def cmd_refund(args, state: StateDir) -> int:
+    cfg = _load(state)
+    ops = _ops_for_cli(state, cfg)
+    try:
+        order = ops.record_refund(args.code.upper(), memo=args.memo or "")
+    except ValueError as exc:
+        sys.exit(str(exc))
+    print(f"✓ Đã ghi hoàn tiền đơn {order.code} vào sổ cái" + (" và báo khách qua email." if ops.mail else "."))
+    return 0
+
+
+def cmd_demo_ops(args, state: StateDir) -> int:
+    from .ops.demo import run_demo
+    return run_demo(verbose=not args.quiet)
+
 # ----------------------------------------------------------------------------- parser
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="automaton51", description="AI tự kiếm tiền, tự sinh tồn, chia lợi nhuận 51% chủ sở hữu / 49% mở rộng.")
@@ -438,6 +647,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--ticks", type=int, default=None, help="số nhịp rồi dừng (mặc định chạy mãi)")
     s.add_argument("--serve", action="store_true", help="bật dashboard/webhook cùng lúc")
     s.add_argument("--port", type=int, default=None)
+    s.add_argument("--host", default="127.0.0.1", help="mặc định chỉ máy này truy cập; dùng 0.0.0.0 khi cần nhận webhook từ ngoài (đặt sau HTTPS)")
     s.add_argument("--mode", choices=["sim", "live"], default=None, help="ghi đè chế độ trong config")
     s.add_argument("--realtime", action="store_true", help="sim nhưng dùng thời gian thật")
     s.add_argument("--no-brain", action="store_true", help="chỉ chạy nhịp tim (không suy nghĩ)")
@@ -493,6 +703,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("serve", help="chỉ chạy dashboard/webhook")
     s.add_argument("--port", type=int, default=None)
+    s.add_argument("--host", default="127.0.0.1")
     s.set_defaults(func=cmd_serve)
 
     sub.add_parser("seal", help="niêm phong hiến pháp + mô-đun bảo vệ (chủ sở hữu)").set_defaults(func=cmd_seal)
@@ -501,6 +712,45 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("stop", help="bật công tắc tắt nguồn (kill switch)").set_defaults(func=cmd_stop)
     sub.add_parser("resume", help="tắt công tắc STOP").set_defaults(func=cmd_resume)
     sub.add_parser("resurrect", help="hồi sinh sau khi nạp vốn").set_defaults(func=cmd_resurrect)
+
+    s = sub.add_parser("setup", help="cài đặt vận hành tự động một lần (tài khoản nhận tiền + khoá kết nối)")
+    s.add_argument("--email", help="Gmail dùng cho kinh doanh")
+    s.add_argument("--alias", help="địa chỉ nhận khách (mặc định: <gmail>+hocthuat@gmail.com)")
+    s.add_argument("--alias-tag", help="phần sau dấu + (mặc định hocthuat)")
+    s.add_argument("--owner", help="tên ký trong thư")
+    s.add_argument("--business", help="tên dịch vụ")
+    s.add_argument("--notify-email", help="email nhận báo cáo hằng ngày")
+    s.add_argument("--bank", help="ngân hàng: vcb, tcb, mbbank, acb, bidv, vietinbank... hoặc BIN 6 số")
+    s.add_argument("--account", help="số tài khoản nhận tiền")
+    s.add_argument("--account-name", help="tên chủ tài khoản")
+    s.add_argument("--payment-provider", choices=["sepay", "webhook"])
+    s.add_argument("--facebook-page-id")
+    s.add_argument("--seed-usd", type=_money_arg, default=None, help="vốn mồi USD nếu sổ cái đang trống")
+    s.set_defaults(func=cmd_setup)
+
+    s = sub.add_parser("doctor", help="kiểm tra mọi kết nối (Anthropic, Gmail, SePay, Facebook)")
+    s.add_argument("--offline", action="store_true", help="chỉ kiểm tra cấu hình, không gọi mạng")
+    s.set_defaults(func=cmd_doctor)
+
+    s = sub.add_parser("outreach", help="danh bạ: nhập CSV từ Google Contacts, xem thống kê")
+    os_ = s.add_subparsers(dest="out_cmd", required=True)
+    imp = os_.add_parser("import", help="nhập CSV xuất từ contacts.google.com")
+    imp.add_argument("csv")
+    os_.add_parser("status")
+    s.set_defaults(func=cmd_outreach)
+
+    s = sub.add_parser("orders", help="xem đơn hàng")
+    s.add_argument("--all", action="store_true")
+    s.set_defaults(func=cmd_orders)
+
+    s = sub.add_parser("refund", help="ghi sổ sau khi BẠN đã chuyển tiền hoàn cho khách")
+    s.add_argument("code")
+    s.add_argument("--memo")
+    s.set_defaults(func=cmd_refund)
+
+    s = sub.add_parser("demo-ops", help="chạy thử trọn luồng tự động bằng dữ liệu giả (không cần khoá, không tốn tiền)")
+    s.add_argument("--quiet", action="store_true")
+    s.set_defaults(func=cmd_demo_ops)
     return p
 
 

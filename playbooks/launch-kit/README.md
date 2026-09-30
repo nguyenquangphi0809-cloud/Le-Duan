@@ -15,4 +15,8 @@ khi bật chế độ live.
 | `07-danh-ba-khong-dung-so-dien-thoai.md` | Khai thác danh bạ đúng luật, không dùng số điện thoại và Zalo cá nhân | Làm theo 4 bước, dùng 3 mẫu thư |
 
 Quy tắc chung của mọi tài liệu: không dùng số điện thoại hay Zalo cá nhân của bạn (kênh liên hệ là email, Trang Facebook, Google Form); chỉ gửi quảng cáo cho người đã đồng ý; không viết hộ, không "hạ đạo văn", nói rõ có dùng AI và có
-chuyên gia kiểm tra, bảo mật bản thảo.
+kiểm tra chất lượng tự động (không thêm nội dung, không mất chữ, có Track Changes), bảo mật bản thảo.
+
+**Chế độ tự động hoàn toàn** (`automaton51 setup`): hệ thống tự đăng bài 03 lên Trang Facebook, tự gửi thư xin phép
+cho danh bạ theo tệp 07, tự trả lời email, báo giá, nhận tiền, xử lý và giao đơn. Các tệp còn lại dùng khi bạn muốn
+tự đăng thêm ở kênh khác (TikTok, nhóm Facebook) mà hệ thống không được phép đăng thay.

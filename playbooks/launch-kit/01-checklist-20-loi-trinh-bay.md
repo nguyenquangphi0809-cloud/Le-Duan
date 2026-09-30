@@ -34,4 +34,4 @@
 
 **Bạn cần người rà toàn bộ 20 mục trên trong 24 giờ?** Dịch vụ "Trợ lý học thuật số": định
 dạng theo mẫu trường, chuẩn hoá tài liệu tham khảo, hiệu đính ngôn ngữ, tóm tắt tiếng Anh,
-luyện phản biện. Không viết hộ, có chuyên gia kiểm tra, bảo mật bản thảo. Liên hệ: *(Trang Facebook / email kinh doanh của bạn)*.
+luyện phản biện. Không viết hộ, do trợ lý AI thực hiện và kiểm tra chất lượng tự động, bảo mật bản thảo. Liên hệ: *(Trang Facebook / email kinh doanh của bạn)*.
