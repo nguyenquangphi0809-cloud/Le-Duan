@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ôn thi trắc nghiệm</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#667085;--line:#e3e6eb;--accent:#1f6feb;--ok:#1a7f37;--okbg:#e6f4ea;--bad:#cf222e;--badbg:#fdecee;--hl:#fff8e1}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1218;--card:#171b23;--text:#e6e9ef;--muted:#98a2b3;--line:#2a303b;--accent:#4c8dff;--ok:#4ac26b;--okbg:#14301e;--bad:#ff6b6b;--badbg:#3a1a1e;--hl:#2d2814}}
+:root[data-theme="dark"]{--bg:#0f1218;--card:#171b23;--text:#e6e9ef;--muted:#98a2b3;--line:#2a303b;--accent:#4c8dff;--ok:#4ac26b;--okbg:#14301e;--bad:#ff6b6b;--badbg:#3a1a1e;--hl:#2d2814}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:.2rem 0 1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+label.f{display:block;font-size:.85rem;color:var(--muted);margin:.6rem 0 .25rem}
+select,input[type=number]{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);font:inherit}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 160px}
+.chk{display:flex;gap:8px;align-items:center;margin-top:.6rem}
+button{font:inherit;padding:10px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+.modes button{text-align:left;padding:12px}.modes b{display:block}.modes small{color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.9rem;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:12px}.bar i{display:block;height:100%;background:var(--accent)}
+.qid{font-size:.8rem;color:var(--muted)}
+.q{font-weight:600;margin:.3rem 0 .9rem}
+.opt{display:flex;gap:10px;width:100%;text-align:left;margin-bottom:8px;padding:11px 12px;align-items:flex-start}
+.opt .k{font-weight:700;min-width:1.4em}
+.opt.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.opt.ok{background:var(--okbg);border-color:var(--ok)}.opt.bad{background:var(--badbg);border-color:var(--bad)}
+.note{background:var(--hl);border-radius:8px;padding:10px 12px;font-size:.9rem;margin-top:6px}
+.nav{display:flex;gap:8px;justify-content:space-between;margin-top:12px;flex-wrap:wrap}
+.grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.grid button{width:40px;padding:6px 0;font-size:.85rem}
+.grid .done{background:var(--line)}.grid .ok{background:var(--okbg);border-color:var(--ok)}.grid .bad{background:var(--badbg);border-color:var(--bad)}.grid .cur{outline:2px solid var(--accent)}
+.score{font-size:2.2rem;font-weight:700}
+.muted{color:var(--muted);font-size:.9rem}
+.hidden{display:none}
+.rv{border-top:1px solid var(--line);padding:12px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ôn thi trắc nghiệm</h1>
+
+  <!-- Màn hình chọn -->
+  <section id="home">
+    <div class="card">
+      <div class="muted" id="stats"></div>
+      <label class="f">Chủ đề (theo mã câu hỏi)</label>
+      <select id="topic"></select>
+      <div class="row">
+        <div><label class="f">Số câu thi thử</label><input type="number" id="nq" min="1" value="30"></div>
+        <div><label class="f">Thời gian thi thử (phút, 0 = không giới hạn)</label><input type="number" id="mins" min="0" value="30"></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="shuf" checked> Trộn thứ tự câu hỏi</label>
+      <div class="modes">
+        <button class="pri" data-mode="learn"><b>Luyện tập</b><small style="color:#dfe8ff">Chọn đáp án là biết đúng/sai ngay, kèm chú giải</small></button>
+        <button data-mode="exam"><b>Thi thử</b><small>Ngẫu nhiên, tính giờ, chấm điểm cuối bài</small></button>
+        <button data-mode="wrong"><b>Ôn câu sai</b><small id="wrongN"></small></button>
+        <button data-mode="flash"><b>Xem đáp án</b><small>Đọc lướt câu hỏi + đáp án đúng</small></button>
+      </div>
+    </div>
+    <div class="row"><button id="resetBtn">Xoá lịch sử làm bài</button><button id="themeBtn">Đổi giao diện sáng/tối</button></div>
+  </section>
+
+  <!-- Màn hình làm bài -->
+  <section id="quiz" class="hidden">
+    <div class="top"><span id="pos"></span><span id="timer"></span><span id="tally"></span><button id="quit">Thoát</button></div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="card">
+      <div class="qid" id="qid"></div>
+      <div class="q" id="qtext"></div>
+      <div id="opts"></div>
+      <div id="expl"></div>
+      <div class="nav">
+        <button id="prev">← Câu trước</button>
+        <button id="finish" class="hidden">Nộp bài</button>
+        <button id="next" class="pri">Câu sau →</button>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+    <div class="muted">Phím tắt: A/B/C/D hoặc 1–4 để chọn, ←/→ để chuyển câu.</div>
+  </section>
+
+  <!-- Màn hình kết quả -->
+  <section id="result" class="hidden">
+    <div class="card">
+      <div class="score" id="score"></div>
+      <div class="muted" id="scoreSub"></div>
+      <div class="nav"><button id="home2">Về trang chính</button><button id="redoWrong" class="pri">Làm lại các câu sai</button></div>
+    </div>
+    <div class="card" id="review"></div>
+  </section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/[];
+const L = "ABCD", KEY = "onthi.v1";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(store)); } catch(e){} }
+let store = load(); store.hist = store.hist || {};   // id -> {ok, bad, last}
+let S = null, timerId = null;
+
+const topics = [...new Set(DATA.map(q => q.id.split(".").slice(0,2).join(".")))].sort();
+$("topic").innerHTML = `<option value="">Tất cả (${DATA.length} câu)</option>` +
+  topics.map(t => `<option value="${t}">${t} (${DATA.filter(q=>q.id.startsWith(t+".")).length} câu)</option>`).join("");
+
+function wrongIds(){ return Object.keys(store.hist).filter(id => store.hist[id].last === false); }
+function refreshHome(){
+  const seen = Object.keys(store.hist).length, w = wrongIds().length;
+  $("stats").textContent = `Đã làm ${seen}/${DATA.length} câu · Đang sai ${w} câu`;
+  $("wrongN").textContent = w ? `${w} câu bạn đang trả lời sai` : "Chưa có câu sai";
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];} return a; }
+function show(id){ ["home","quiz","result"].forEach(s => $(s).classList.toggle("hidden", s!==id)); window.scrollTo(0,0); }
+
+function start(mode, list){
+  const t = $("topic").value;
+  let qs = list || DATA.filter(q => !t || q.id.startsWith(t+"."));
+  if (mode === "wrong" && !list){ const w = new Set(wrongIds()); qs = qs.filter(q => w.has(q.id)); }
+  if (!qs.length){ alert("Không có câu hỏi nào phù hợp."); return; }
+  qs = qs.slice();
+  if ($("shuf").checked || mode === "exam") shuffle(qs);
+  if (mode === "exam") qs = qs.slice(0, Math.max(1, +$("nq").value || 30));
+  S = { mode: mode === "wrong" ? "learn" : mode, qs, i: 0, ans: Array(qs.length).fill(null), done: false };
+  clearInterval(timerId); $("timer").textContent = "";
+  const mins = +$("mins").value;
+  if (S.mode === "exam" && mins > 0){
+    S.end = Date.now() + mins*60000;
+    const tick = () => { const s = Math.max(0, Math.round((S.end-Date.now())/1000));
+      $("timer").textContent = `⏱ ${String(s/60|0).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+      if (!s) finish(); };
+    tick(); timerId = setInterval(tick, 1000);
+  }
+  show("quiz"); render();
+}
+
+function record(q, ok){
+  const h = store.hist[q.id] || {ok:0, bad:0};
+  ok ? h.ok++ : h.bad++; h.last = ok; store.hist[q.id] = h; save();
+}
+
+function render(){
+  const q = S.qs[S.i], a = S.ans[S.i], reveal = S.mode === "flash" || (S.mode === "learn" && a !== null);
+  $("pos").textContent = `Câu ${S.i+1}/${S.qs.length}`;
+  $("prog").style.width = (100*(S.i+1)/S.qs.length) + "%";
+  const answered = S.ans.filter(x => x !== null).length;
+  const right = S.ans.filter((x,k) => x !== null && x === S.qs[k].a).length;
+  $("tally").textContent = S.mode === "learn" ? `Đúng ${right}/${answered}` : S.mode === "exam" ? `Đã chọn ${answered}/${S.qs.length}` : "";
+  $("qid").textContent = q.id;
+  $("qtext").textContent = q.q;
+  $("opts").innerHTML = q.o.map((o,k) => {
+    let c = "opt";
+    if (reveal){ if (k === q.a) c += " ok"; else if (k === a) c += " bad"; }
+    else if (k === a) c += " sel";
+    return `<button class="${c}" data-k="${k}"><span class="k">${L[k]}.</span><span>${esc(o)}</span></button>`;
+  }).join("");
+  $("expl").innerHTML = reveal
+    ? `<div class="note"><b>Đáp án: ${L[q.a]}</b>${a!==null && S.mode==="learn" ? (a===q.a ? " — Bạn trả lời đúng ✓" : ` — Bạn chọn ${L[a]} ✗`) : ""}${q.g ? `<br>📖 ${esc(q.g)}` : ""}</div>` : "";
+  $("prev").disabled = S.i === 0;
+  $("next").textContent = S.i === S.qs.length-1 ? (S.mode === "exam" ? "Nộp bài" : "Kết thúc") : "Câu sau →";
+  $("finish").classList.toggle("hidden", S.mode !== "exam");
+  $("grid").innerHTML = S.qs.length > 200 ? "" : S.qs.map((qq,k) => {
+    let c = k === S.i ? "cur " : "";
+    const x = S.ans[k];
+    if (x !== null) c += S.mode === "learn" ? (x === qq.a ? "ok" : "bad") : "done";
+    return `<button class="${c}" data-j="${k}">${k+1}</button>`;
+  }).join("");
+}
+
+function choose(k){
+  if (S.mode === "flash") return;
+  if (S.mode === "learn"){
+    if (S.ans[S.i] !== null) return;
+    S.ans[S.i] = k; record(S.qs[S.i], k === S.qs[S.i].a);
+  } else S.ans[S.i] = k;
+  render();
+}
+function go(d){
+  const j = S.i + d;
+  if (j >= S.qs.length){
+    if (S.mode === "exam"){ const left = S.ans.filter(x=>x===null).length;
+      if (left && !confirm(`Còn ${left} câu chưa làm. Nộp bài?`)) return; }
+    return finish();
+  }
+  if (j >= 0){ S.i = j; render(); window.scrollTo(0,0); }
+}
+
+function finish(){
+  if (S.done) return; S.done = true; clearInterval(timerId);
+  if (S.mode === "flash"){ show("home"); refreshHome(); return; }
+  if (S.mode === "exam") S.qs.forEach((q,k) => record(q, S.ans[k] === q.a));
+  const n = S.qs.length, right = S.qs.filter((q,k) => S.ans[k] === q.a).length;
+  const skipped = S.ans.filter(x => x === null).length;
+  $("score").textContent = `${right}/${n} câu đúng (${(100*right/n).toFixed(0)}%)`;
+  $("scoreSub").textContent = `Điểm quy đổi thang 10: ${(10*right/n).toFixed(2)}` + (skipped ? ` · ${skipped} câu bỏ trống` : "");
+  S.wrong = S.qs.filter((q,k) => S.ans[k] !== q.a);
+  $("redoWrong").disabled = !S.wrong.length;
+  $("review").innerHTML = S.wrong.length ? `<b>Các câu sai / bỏ trống (${S.wrong.length})</b>` +
+    S.qs.map((q,k) => S.ans[k] === q.a ? "" : `<div class="rv"><div class="qid">${esc(q.id)}</div><div class="q">${esc(q.q)}</div>
+      ${q.o.map((o,m) => `<div class="opt ${m===q.a?"ok":m===S.ans[k]?"bad":""}" style="cursor:default"><span class="k">${L[m]}.</span><span>${esc(o)}</span></div>`).join("")}
+      ${q.g ? `<div class="note">📖 ${esc(q.g)}</div>` : ""}</div>`).join("") : "<b>Tuyệt vời! Bạn làm đúng tất cả.</b>";
+  show("result");
+}
+
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => start(b.dataset.mode));
+$("opts").onclick = e => { const b = e.target.closest("[data-k]"); if (b) choose(+b.dataset.k); };
+$("grid").onclick = e => { const b = e.target.closest("[data-j]"); if (b){ S.i = +b.dataset.j; render(); } };
+$("prev").onclick = () => go(-1);
+$("next").onclick = () => go(1);
+$("finish").onclick = () => { S.i = S.qs.length-1; go(1); };
+$("quit").onclick = () => { if (S.mode !== "exam" || confirm("Thoát bài thi? Kết quả sẽ không được lưu.")){ clearInterval(timerId); show("home"); refreshHome(); } };
+$("home2").onclick = () => { show("home"); refreshHome(); };
+$("redoWrong").onclick = () => start("learn", S.wrong);
+$("resetBtn").onclick = () => { if (confirm("Xoá toàn bộ lịch sử làm bài?")){ store.hist = {}; save(); refreshHome(); } };
+$("themeBtn").onclick = () => { const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.dataset.theme = dark ? "light" : "dark"; store.theme = r.dataset.theme; save(); };
+if (store.theme) document.documentElement.dataset.theme = store.theme;
+document.addEventListener("keydown", e => {
+  if ($("quiz").classList.contains("hidden") || e.target.tagName === "INPUT") return;
+  const k = "abcd1234".indexOf(e.key.toLowerCase());
+  if (k >= 0) choose(k % 4);
+  else if (e.key === "ArrowRight" || e.key === "Enter") go(1);
+  else if (e.key === "ArrowLeft") go(-1);
+});
+refreshHome();
+</script>
+</body>
+</html>
