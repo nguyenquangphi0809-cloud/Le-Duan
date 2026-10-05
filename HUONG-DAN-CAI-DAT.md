@@ -126,6 +126,10 @@ chuyển khoản). SePay miễn phí **500 giao dịch/tháng trong năm đầu*
    | API token SePay | dán token |
    | Page access token Facebook | bấm **Enter** để bỏ qua (xem [Phụ lục C](#phụ-lục-c--trang-facebook-tuỳ-chọn)) |
    | Số tiền đã nạp vào API Claude (USD) | `20` (số bạn nạp ở bước 3) |
+   | Địa chỉ liên hệ kinh doanh | ví dụ `phường Phúc Lợi, Hà Nội` — in cuối thư quảng cáo theo Nghị định 91/2020 |
+   | Địa chỉ Trang Facebook của dịch vụ | dán đường dẫn Trang, chưa có thì **Enter** |
+   | Số điện thoại RIÊNG cho kinh doanh | **Enter** để bỏ qua. Không dùng số cá nhân; nếu muốn đủ thông tin theo Nghị định 91, có thể mua một SIM riêng chỉ để in vào thư |
+   | Token quảng cáo Meta | **Enter** để bỏ qua (muốn chạy quảng cáo trả tiền: xem [Phụ lục D](#phụ-lục-d--quảng-cáo-trả-tiền-tuỳ-chọn)) |
 
    **Cách dán:** bấm **chuột phải** vào cửa sổ đen (hoặc **Ctrl+V**), rồi **Enter**. Khi dán khoá và mật khẩu, màn
    hình **không hiện gì** — đó là để bảo mật, không phải lỗi. Cuối bước, dòng *"Khoá đã có"* hiện vài ký tự đầu/cuối
@@ -318,3 +322,24 @@ Không bắt buộc: bán hàng tự động chạy qua email. Nếu muốn AI t
 5. Lệnh nhanh → `6` → Enter qua các mục, dán Page access token, rồi nhập ID Trang khi được hỏi.
 
 Hướng dẫn chính thức của Meta: <https://developers.facebook.com/docs/pages-api/getting-started>.
+
+## Phụ lục D — Quảng cáo trả tiền (tuỳ chọn)
+
+Không bắt buộc. Khi bật, mỗi 7 ngày hệ thống chọn bài ngách A (hồ sơ bảo vệ luận án) có nhiều tương tác nhất trên Trang và
+chạy quảng cáo tối đa 700.000 đ một đợt (cộng 10% thuế Meta), **chỉ lấy từ Quỹ mở rộng 49 %**; quỹ chưa đủ thì chờ.
+Bài ngách B (sử liệu địa phương, lịch sử Đảng bộ) không bao giờ được chạy quảng cáo trả tiền.
+
+1. Vào <https://business.facebook.com> → tạo Danh mục đầu tư kinh doanh → thêm Trang của bạn.
+2. Cài đặt doanh nghiệp → **Tài khoản quảng cáo** → Tạo mới (tiền tệ **VND**, múi giờ Hồ Chí Minh) → thêm thẻ thanh toán.
+   Có thể đặt thêm *giới hạn chi tiêu tài khoản* để chặn một lớp nữa.
+3. Ứng dụng ở Phụ lục C: thêm sản phẩm **Marketing API**, chuyển ứng dụng sang chế độ **Live**.
+4. Cài đặt doanh nghiệp → Người dùng → **Người dùng hệ thống** → Thêm → gán Trang và tài khoản quảng cáo (toàn quyền) →
+   **Tạo mã**: chọn ứng dụng, chọn quyền `ads_management`, `ads_read`, `pages_manage_posts`, `pages_read_engagement`,
+   `pages_show_list`.
+5. Lệnh nhanh → `6` → Enter qua các mục đến dòng **Token quảng cáo Meta** → dán mã (màn hình không hiện gì là bình thường)
+   → nhập **số tài khoản quảng cáo** (dãy số sau `act_`). Hệ thống tự bật quảng cáo.
+6. Kiểm tra: lệnh nhanh → mục kiểm tra kết nối; dòng *"Quảng cáo Meta: … đang hoạt động"* là xong.
+
+Muốn thuê người chạy quảng cáo thay vì tự động: xem chi phí, mẫu hợp đồng theo kết quả và các rủi ro ở
+[playbooks/launch-kit/10-quang-cao-tu-dong-va-thue-ngoai.md](playbooks/launch-kit/10-quang-cao-tu-dong-va-thue-ngoai.md).
+Mỗi lần trả tiền cho người chạy quảng cáo, ghi sổ để Quỹ mở rộng đúng số: `automaton51 ads spend <số đồng> --memo "..."`.

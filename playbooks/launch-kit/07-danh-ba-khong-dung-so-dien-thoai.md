@@ -39,6 +39,9 @@ miễn phí: email, Trang Facebook, Google Form.
      biên tập viên tạp chí. Không bán cho họ, chỉ nhờ họ chia sẻ checklist.
    - **Nhóm B, khách tiềm năng quen biết:** học viên cao học, nghiên cứu sinh, giảng viên trẻ
      đang viết bài. Mời nhận checklist, hỏi họ có muốn nhận thông tin dịch vụ không.
+   - **Nhóm G, cấp ủy, cơ quan, người biên soạn sử (ngách B):** đảng ủy, UBND xã/phường, ban tuyên
+     giáo, hội khoa học lịch sử, bảo tàng, lưu trữ, người đang biên soạn lịch sử địa phương. Mời dùng
+     thử công cụ chuyển phông .VnTime/VNI miễn phí, hỏi họ có muốn nhận bảng giá số hoá, biên niên không.
    - **Nhóm C, còn lại:** người thân, bạn bè ngoài giới học thuật. Không gửi.
 3. Người chỉ có số điện thoại, không có email: **không nhắn**. Nếu là bạn bè trên Facebook,
    mời họ theo dõi Trang. Nếu không, để họ biết qua người giới thiệu ở nhóm A.
@@ -51,6 +54,11 @@ miễn phí: email, Trang Facebook, Google Form.
 - Cuối mỗi thư có dòng từ chối. Ai trả lời "không", hoặc im lặng sau 7 ngày: ghi "không",
   không bao giờ gửi lại.
 - Chỉ người đã trả lời "có" hoặc đã điền Google Form mới nhận thư về dịch vụ.
+- Thư có nội dung giới thiệu dịch vụ là thư quảng cáo theo Nghị định 91/2020: tiêu đề bắt đầu bằng **[QC]**,
+  cuối thư có thông tin người gửi (tên, email, địa chỉ, Trang; điện thoại nếu có số RIÊNG cho kinh doanh) và
+  cách từ chối nhận thư. Hệ thống tự làm đúng như vậy; điền địa chỉ kinh doanh khi chạy `automaton51 setup`.
+- Hệ thống tự phân nhóm A/B/G, chia lượt gửi giữa hai ngách theo hiệu quả, và lưu bằng chứng đồng ý
+  (thời điểm, mã thư, lời trả lời) của từng người trả lời "có".
 
 ### Mẫu A. Nhờ thầy cô, đồng nghiệp giới thiệu
 

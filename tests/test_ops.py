@@ -96,9 +96,9 @@ class OrderPricingTests(unittest.TestCase):
         self.assertEqual(price_vnd("DF", 50), 400_000)
         self.assertEqual(price_vnd("DF", 84), 520_000)
         self.assertEqual(price_vnd("DF", 500), 900_000)
-        self.assertEqual(price_vnd("HD", 10), 500_000)
-        self.assertEqual(price_vnd("HD", 100), 2_500_000)
-        self.assertEqual(price_vnd("AB", 3), 450_000)
+        self.assertEqual(price_vnd("HD", 10), 400_000)
+        self.assertEqual(price_vnd("HD", 100), 1_200_000)
+        self.assertEqual(price_vnd("AB", 3), 300_000)
         self.assertEqual(quote_total(["DF", "TK"], 84), 920_000)
 
     def test_estimate_pages(self):
@@ -317,12 +317,12 @@ class EngineFlowTests(unittest.TestCase):
                      [Attachment("tt.docx", thesis(state.root, pages=2, n=5).read_bytes())])
         step(auto, clock)
         order = ops.orders.all()[0]
-        self.assertEqual(order.price_vnd, 450_000)
+        self.assertEqual(order.price_vnd, 300_000)
         bank.add(200_000, order.code)
         step(auto, clock)
         self.assertEqual(ops.orders.get(order.code).status, "quoted")
         self.assertIn("chưa đủ", mail.sent[-1].subject)
-        bank.add(250_000, order.code)
+        bank.add(100_000, order.code)
         step(auto, clock)
         self.assertEqual(ops.orders.get(order.code).status, "delivered")
 

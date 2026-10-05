@@ -115,6 +115,24 @@ class Config:
     graph_api_version: str = "v25.0"
     facebook_posts_per_day: int = 1
     digest_hour_utc: int = 1             # 8 giờ sáng giờ Việt Nam
+    # ---- Hai ngách chạy song song (A: hồ sơ bảo vệ luận án; B: số hoá, biên soạn sử liệu địa phương) ----
+    line_min_share: str = "0.25"         # mỗi ngách luôn giữ tối thiểu 25% bài đăng và thư giới thiệu để tiếp tục thử
+    free_cp_per_day: int = 20            # số đơn chuyển phông miễn phí tối đa mỗi ngày (mỗi người 1 đơn/24 giờ)
+    # Thông tin người gửi in trong thư quảng cáo (Nghị định 91/2020: tên, địa chỉ, điện thoại, email, trang web)
+    business_address: str = ""
+    business_phone: str = ""             # số RIÊNG cho kinh doanh nếu có; KHÔNG dùng số điện thoại cá nhân
+    business_website: str = ""           # địa chỉ Trang Facebook hoặc website
+    # ---- Quảng cáo trả tiền trên Meta, trích từ Quỹ mở rộng 49% (tắt cho tới khi có tài khoản quảng cáo) ----
+    ads_enabled: bool = False
+    ad_account_id: str = ""              # dãy số sau act_ trong Trình quản lý quảng cáo
+    ads_every_days: int = 7
+    ads_weekly_cap_vnd: int = 700_000    # trần mỗi đợt (chưa gồm thuế)
+    ads_min_budget_vnd: int = 140_000    # dưới mức này không chạy (quá ít để Meta tối ưu)
+    ads_growth_share: str = "0.5"        # mỗi đợt dùng tối đa 50% số dư Quỹ mở rộng
+    ads_vat_rate: str = "0.10"           # Meta cộng thuế GTGT 10% từ 1/7/2025
+    ads_lines: list[str] = field(default_factory=lambda: ["A"])
+    ads_age_min: int = 23
+    ads_age_max: int = 60
 
     # ---- tiện ích ----
     @property
@@ -199,6 +217,14 @@ class Config:
                 problems.append("payment_provider phải là 'sepay' hoặc 'webhook'")
             if self.vnd_per_usd <= 0:
                 problems.append("vnd_per_usd phải > 0")
+        if self.ads_enabled and not str(self.ad_account_id or "").strip():
+            problems.append("ads_enabled cần ad_account_id (số tài khoản quảng cáo Meta)")
+        for name in ("line_min_share", "ads_growth_share", "ads_vat_rate"):
+            try:
+                if not D("0") <= D(getattr(self, name)) <= D("1"):
+                    problems.append(f"{name} phải nằm trong 0..1")
+            except Exception:  # noqa: BLE001
+                problems.append(f"{name} không phải số hợp lệ")
         return problems
 
     @property

@@ -46,7 +46,8 @@ class FacebookPublisher:
 def launch_kit_posts(path) -> list[str]:
     """Tách 7 bài mẫu trong playbooks/launch-kit/03-... thành danh sách bài đăng."""
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
     except OSError:
         return []
     parts = text.split("\n## ")[1:]
@@ -57,3 +58,20 @@ def launch_kit_posts(path) -> list[str]:
         if body:
             posts.append(body)
     return posts
+
+
+def tagged_posts(path) -> list[tuple[str, str]]:
+    """Bài mẫu gắn ngách: tiêu đề mục dạng "## A1 — ..." hoặc "## B3 — ..." -> [(ngách, nội dung)]."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return []
+    out = []
+    for part in text.split("\n## ")[1:]:
+        lines = part.splitlines()
+        head = lines[0].strip() if lines else ""
+        body = "\n".join(lines[1:]).strip()
+        if body and head[:1] in ("A", "B"):
+            out.append((head[:1], body))
+    return out

@@ -121,7 +121,7 @@ class SetupTests(unittest.TestCase):
             val = next(feed)
             return (val or default).strip()
         with mock.patch.object(cli, "_ask", side_effect=fake_ask), mock.patch.dict(os.environ, env or {}, clear=False):
-            for var in ("ANTHROPIC_API_KEY", "AUTOMATON51_EMAIL_APP_PASSWORD", "SEPAY_API_TOKEN", "FACEBOOK_PAGE_TOKEN"):
+            for var in ("ANTHROPIC_API_KEY", "AUTOMATON51_EMAIL_APP_PASSWORD", "SEPAY_API_TOKEN", "FACEBOOK_PAGE_TOKEN", "META_ADS_TOKEN"):
                 if var not in (env or {}):
                     os.environ.pop(var, None)
             code, out = quiet(cli.cmd_setup, NS(**args), StateDir(root))
@@ -131,7 +131,7 @@ class SetupTests(unittest.TestCase):
     def test_interactive_setup_normalises_input(self):
         root = Path(tempfile.mkdtemp()) / "st"
         answers = ["Chu@Gmail.com ", "TS. Nguyễn Văn Đức", "vcb", "0123 456 789", "Nguyễn Văn Đức",
-                   "sk-ant-api03-abc", "abcd efgh ijkl mnop", "", "", "25"]
+                   "sk-ant-api03-abc", "abcd efgh ijkl mnop", "", "", "25", "phường Phúc Lợi, Hà Nội", "", "", ""]
         code, out, cfg, envfile = self._setup(root, answers)
         self.assertEqual(code, 0, out)
         self.assertEqual((cfg.email_address, cfg.email_alias, cfg.bank_id, cfg.bank_account_number, cfg.bank_account_name),
@@ -141,23 +141,25 @@ class SetupTests(unittest.TestCase):
         self.assertNotIn("Bước tiếp theo", out)  # gọi từ install: không in hướng dẫn lệnh gõ tay
         from automaton51.ledger import Ledger
         self.assertEqual(str(Ledger(root / "ledger.jsonl").balance("operating")), "25.000000")
+        self.assertEqual((cfg.business_address, cfg.business_phone, cfg.ads_enabled), ("phường Phúc Lợi, Hà Nội", "", False))
 
     def test_rerun_keeps_values_and_updates_alias_when_email_changes(self):
         root = Path(tempfile.mkdtemp()) / "st"
-        first = ["chu@gmail.com", "TS. A", "vcb", "0123456789", "NGUYEN VAN A", "sk-ant-1", "abcdabcdabcdabcd", "", "", "20"]
+        first = ["chu@gmail.com", "TS. A", "vcb", "0123456789", "NGUYEN VAN A", "sk-ant-1", "abcdabcdabcdabcd", "", "", "20",
+                 "", "", "", ""]
         self._setup(root, first)
         env = {"ANTHROPIC_API_KEY": "sk-ant-1", "AUTOMATON51_EMAIL_APP_PASSWORD": "abcdabcdabcdabcd"}
         # Lần 2: Enter hết (giữ nguyên), chỉ đổi số tài khoản
-        code, out, cfg, envfile = self._setup(root, ["", "", "", "9999888877", "", "", "", "", ""], env=env)
+        code, out, cfg, envfile = self._setup(root, ["", "", "", "9999888877", "", "", "", "", "", "", "", "", ""], env=env)
         self.assertEqual((cfg.email_address, cfg.bank_account_number, cfg.owner_name), ("chu@gmail.com", "9999888877", "TS. A"))
         self.assertIn("ANTHROPIC_API_KEY=sk-ant-1", envfile)
         # Lần 3: đổi Gmail -> địa chỉ nhận khách và email báo cáo đi theo
-        code, out, cfg, envfile = self._setup(root, ["moi@gmail.com", "", "", "", "", "", "", "", ""], env=env)
+        code, out, cfg, envfile = self._setup(root, ["moi@gmail.com", "", "", "", "", "", "", "", "", "", "", "", ""], env=env)
         self.assertEqual((cfg.email_alias, cfg.owner_notify_email), ("moi+hocthuat@gmail.com", "moi@gmail.com"))
 
     def test_setup_asks_running_agent_to_restart(self):
         root = Path(tempfile.mkdtemp()) / "st"
-        answers = ["chu@gmail.com", "TS. A", "vcb", "0123456789", "NGUYEN VAN A", "k", "p", "", "", "20"]
+        answers = ["chu@gmail.com", "TS. A", "vcb", "0123456789", "NGUYEN VAN A", "k", "p", "", "", "20", "", "", "", ""]
         with mock.patch.object(StateDir, "running_pid", return_value=4242):
             code, out, cfg, envfile = self._setup(root, answers)
         self.assertTrue((root / "RESTART").exists())
@@ -181,7 +183,7 @@ class InstallTests(unittest.TestCase):
 
     def test_install_linux_flow_with_offline_services(self):
         root = Path(tempfile.mkdtemp()) / "st"
-        answers = iter(["chu@gmail.com", "TS. A", "vcb", "0123456789", "NGUYEN VAN A", "", "", "", "", "20"])
+        answers = iter(["chu@gmail.com", "TS. A", "vcb", "0123456789", "NGUYEN VAN A", "", "", "", "", "20", "", "", "", ""])
         calls = []
 
         def fake_run(cmd, *a, **kw):
@@ -190,7 +192,7 @@ class InstallTests(unittest.TestCase):
         with mock.patch.object(cli, "_ask", side_effect=lambda p, d="", secret=False: (next(answers) or d).strip()), \
                 mock.patch("subprocess.run", side_effect=fake_run), mock.patch.object(sys, "platform", "linux"), \
                 mock.patch.dict(os.environ, {}, clear=False):
-            for var in ("ANTHROPIC_API_KEY", "AUTOMATON51_EMAIL_APP_PASSWORD", "SEPAY_API_TOKEN", "FACEBOOK_PAGE_TOKEN"):
+            for var in ("ANTHROPIC_API_KEY", "AUTOMATON51_EMAIL_APP_PASSWORD", "SEPAY_API_TOKEN", "FACEBOOK_PAGE_TOKEN", "META_ADS_TOKEN"):
                 os.environ.pop(var, None)
             code, out = quiet(cli.cmd_install, NS(), StateDir(root))
         self.assertEqual(code, 3)  # thiếu khoá -> kiểm tra chưa đạt, không tự chạy

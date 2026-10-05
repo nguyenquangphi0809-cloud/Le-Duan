@@ -525,6 +525,7 @@ def cmd_setup(args, state: StateDir) -> int:
             seed = None
     if seed and ledger.balance("operating") <= ZERO and not ledger.entries:
         ledger.deposit(seed, memo="Vốn mồi (tương ứng tiền nạp API Claude)")
+    _setup_optional(args, state, cfg)
     problems = cfg.validate()
     print("\n✓ Đã lưu cấu hình." if not problems else "\n⚠ Còn thiếu:\n  - " + "\n  - ".join(problems))
     from .ops.payments import vietqr_url
@@ -540,6 +541,34 @@ def cmd_setup(args, state: StateDir) -> int:
               "\n  2) automaton51 outreach import danh-ba.csv   (tuỳ chọn: CSV xuất từ contacts.google.com)"
               "\n  3) automaton51 run --serve   (chạy mãi; hoặc cài dịch vụ 24/7, xem deploy/)")
     return 0 if not problems else 1
+
+
+def _setup_optional(args, state: StateDir, cfg: Config) -> None:
+    """Tuỳ chọn ở cuối setup (Enter để bỏ qua): thông tin người gửi in trong thư quảng cáo, quảng cáo trả tiền Meta."""
+    from .ops import secrets as S
+    print("\n-- Tuỳ chọn (Enter để bỏ qua): thông tin người gửi trong thư quảng cáo, quảng cáo trả tiền --")
+    address, website, phone = (getattr(args, k, None) for k in ("address", "website", "phone"))
+    cfg.business_address = (address if address is not None else
+                            _ask("Địa chỉ liên hệ kinh doanh, in cuối thư quảng cáo (ví dụ: phường Phúc Lợi, Hà Nội)",
+                                 cfg.business_address)).strip()
+    cfg.business_website = (website if website is not None else
+                            _ask("Địa chỉ Trang Facebook của dịch vụ (https://facebook.com/...)", cfg.business_website)).strip()
+    cfg.business_phone = (phone if phone is not None else
+                          _ask("Số điện thoại RIÊNG cho kinh doanh nếu có (KHÔNG dùng số cá nhân)", cfg.business_phone)).strip()
+    current = S.get(S.ENV_META_ADS)
+    hint = f" [đang có {S.mask(current)} — Enter để giữ]" if current else ""
+    token = (_ask("Token quảng cáo Meta (người dùng hệ thống, quyền ads_management)" + hint, secret=True) or current or "").strip()
+    if token and token != current:
+        _write_env(state.root / ".env", {S.ENV_META_ADS: token})
+        os.environ[S.ENV_META_ADS] = token
+    ad_account = (getattr(args, "ad_account", None) or
+                  (_ask("Số tài khoản quảng cáo Meta (dãy số sau act_)", cfg.ad_account_id) if token else "")).strip()
+    if ad_account and token:
+        cfg.ad_account_id = ad_account.replace("act_", "")
+        cfg.ads_enabled = True  # chỉ chi từ Quỹ mở rộng 49%, có trần mỗi đợt
+        print(f"  Quảng cáo trả tiền: BẬT, tối đa {cfg.ads_weekly_cap_vnd:,} đ mỗi {cfg.ads_every_days} ngày (cộng 10% thuế), "
+              "chỉ trích Quỹ mở rộng 49%.".replace(",", "."))
+    cfg.save(state.config_path)
 
 
 def cmd_doctor(args, state: StateDir) -> int:
@@ -562,9 +591,12 @@ def cmd_doctor(args, state: StateDir) -> int:
     line(not probs, "Cấu hình hợp lệ" if not probs else "Cấu hình: " + "; ".join(probs))
     line(cfg.ops_enabled, "Vận hành tự động đang BẬT" if cfg.ops_enabled else "Vận hành tự động đang TẮT (chạy automaton51 setup)")
     for var in S.ALL:
-        optional = var in (S.ENV_FACEBOOK_TOKEN, S.ENV_SEPAY_WEBHOOK_KEY) or (var == S.ENV_SEPAY_TOKEN and cfg.payment_provider != "sepay")
+        optional = var in (S.ENV_FACEBOOK_TOKEN, S.ENV_SEPAY_WEBHOOK_KEY) or (var == S.ENV_SEPAY_TOKEN and cfg.payment_provider != "sepay") \
+            or (var == S.ENV_META_ADS and not cfg.ads_enabled)
         if S.get(var) or not optional:
             line(bool(S.get(var)), f"{var}: {S.mask(S.get(var))}")
+    if cfg.outreach_enabled and not cfg.business_address:
+        print("  i Thư quảng cáo nên có địa chỉ liên hệ (Nghị định 91/2020): chạy lại setup và điền địa chỉ kinh doanh.")
     if args.offline:
         return 0 if bad == 0 else 3
     if S.get(S.ENV_ANTHROPIC):
@@ -610,6 +642,12 @@ def cmd_doctor(args, state: StateDir) -> int:
             line(True, "Facebook: " + FacebookPublisher(cfg.facebook_page_id, S.get(S.ENV_FACEBOOK_TOKEN), cfg.graph_api_version).check())
         except Exception as exc:  # noqa: BLE001
             line(False, f"Facebook: {exc}")
+    if cfg.ads_enabled and cfg.ad_account_id and S.get(S.ENV_META_ADS):
+        from .ops.ads import MetaAds
+        try:
+            line(True, "Quảng cáo Meta: " + MetaAds(cfg.ad_account_id, S.get(S.ENV_META_ADS), cfg.graph_api_version).check())
+        except Exception as exc:  # noqa: BLE001
+            line(False, f"Quảng cáo Meta: {exc}")
     print("  i Mã QR mẫu: " + vietqr_url(cfg.bank_id, cfg.bank_account_number, cfg.bank_account_name, 10000, "HTTHU01"))
     print("\nKết luận: " + ("sẵn sàng chạy (automaton51 run --serve)" if bad == 0 else f"còn {bad} mục cần sửa"))
     return 0 if bad == 0 else 3
@@ -677,6 +715,63 @@ def cmd_refund(args, state: StateDir) -> int:
     except ValueError as exc:
         sys.exit(str(exc))
     print(f"✓ Đã ghi hoàn tiền đơn {order.code} vào sổ cái" + (" và báo khách qua email." if ops.mail else "."))
+    return 0
+
+
+def cmd_prices(args, state: StateDir) -> int:
+    from .ops.orders import BUNDLES, expand_services, quote_total
+    from .ops.templates import fmt_vnd, price_table
+    print(price_table())
+    pages = args.pages
+    print(f"Ví dụ báo giá cho tài liệu {pages} trang:")
+    for code, spec in BUNDLES.items():
+        items = expand_services([code])
+        print(f"  {spec['name']}: {fmt_vnd(quote_total(items, pages))} (lẻ từng dịch vụ: "
+              f"{fmt_vnd(sum(quote_total([s], pages) for s in items))})")
+    return 0
+
+
+def cmd_convert(args, state: StateDir) -> int:
+    from .ops.legacy_fonts import convert_docx, convert_plain
+    src = Path(args.file)
+    if not src.exists():
+        sys.exit(f"Không thấy tệp {src}")
+    dst = Path(args.output) if args.output else src.with_name(f"UNICODE_{src.name}")
+    if src.suffix.lower() == ".docx":
+        rep = convert_docx(src, dst)
+        print(f"✓ {dst}: chuyển {rep.paragraphs_converted} đoạn (TCVN3: {rep.tcvn3}, VNI: {rep.vni}) sang Unicode"
+              if rep.changed else f"Không thấy đoạn nào gõ phông TCVN3/VNI; đã chép nguyên tệp sang {dst}")
+    elif src.suffix.lower() == ".txt":
+        text, enc = convert_plain(src.read_text(encoding="utf-8", errors="ignore"))
+        dst.write_text(text, encoding="utf-8")
+        print(f"✓ {dst}: " + (f"chuyển từ {enc.upper()} sang Unicode" if enc else "không thấy chữ TCVN3/VNI, giữ nguyên"))
+    else:
+        sys.exit("Chỉ chuyển được .docx hoặc .txt (tệp .doc: mở bằng Word, Lưu thành .docx).")
+    return 0
+
+
+def cmd_ads(args, state: StateDir) -> int:
+    from decimal import Decimal
+    from .ops.templates import fmt_vnd
+    cfg = _load(state)
+    ledger = Ledger(state.ledger_path, lock_path=state.lock_path)
+    if args.ads_cmd == "spend":
+        usd = D(Decimal(args.vnd) / Decimal(cfg.vnd_per_usd))
+        if usd > ledger.balance("growth"):
+            sys.exit(f"Quỹ mở rộng chỉ còn {fmt(ledger.balance('growth'), 2)} USD, không đủ ghi {fmt_vnd(args.vnd)}. "
+                     "Quảng cáo chỉ được chi từ Quỹ mở rộng 49%.")
+        ledger.growth_spend(usd, "marketing", args.memo or f"Quảng cáo thuê ngoài {fmt_vnd(args.vnd)}",
+                            meta={"vnd": args.vnd, "line": args.line, "external": True})
+        print(f"✓ Đã ghi chi quảng cáo {fmt_vnd(args.vnd)} vào Quỹ mở rộng 49% (còn {fmt(ledger.balance('growth'), 2)} USD).")
+        return 0
+    print(f"Quảng cáo tự động: {'BẬT' if cfg.ads_enabled else 'TẮT'} · tài khoản: {cfg.ad_account_id or '(chưa có)'} · "
+          f"trần {fmt_vnd(cfg.ads_weekly_cap_vnd)} mỗi {cfg.ads_every_days} ngày · ngách: {', '.join(cfg.ads_lines)}")
+    print(f"Tình trạng: {state.kv_get('ads_status', 'chưa chạy') or 'chưa chạy'} · Quỹ mở rộng: {fmt(ledger.balance('growth'), 2)} USD")
+    for c in (state.kv_get("ads_campaigns", []) or [])[-10:]:
+        print(f"  {time.strftime('%d/%m/%Y', time.localtime(c['ts']))}  {fmt_vnd(c['budget_vnd'])} (+VAT = {fmt_vnd(c['total_vnd'])})  "
+              f"chiến dịch {c.get('campaign_id', '?')}  bài {c.get('post', '?')}")
+    spent = [e for e in ledger.entries if e.kind == "growth_spend" and e.category == "marketing"]
+    print(f"Tổng đã chi quảng cáo từ Quỹ mở rộng: {fmt(sum((-e.amount for e in spent), ZERO), 2)} USD ({len(spent)} lần)")
     return 0
 
 
@@ -912,6 +1007,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--account-name", help="tên chủ tài khoản")
     s.add_argument("--payment-provider", choices=["sepay", "webhook"])
     s.add_argument("--facebook-page-id")
+    s.add_argument("--address", default=None, help="địa chỉ liên hệ in trong thư quảng cáo")
+    s.add_argument("--website", default=None, help="địa chỉ Trang Facebook / website")
+    s.add_argument("--phone", default=None, help="số điện thoại RIÊNG cho kinh doanh (không dùng số cá nhân)")
+    s.add_argument("--ad-account", default=None, help="số tài khoản quảng cáo Meta (bật quảng cáo nếu có token)")
     s.add_argument("--seed-usd", type=_money_arg, default=None, help="vốn mồi USD nếu sổ cái đang trống")
     s.set_defaults(func=cmd_setup)
 
@@ -941,6 +1040,24 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_refund)
 
     sub.add_parser("install", help="cài đặt trọn gói: thư viện, thông tin, kiểm tra, tự chạy khi bật máy").set_defaults(func=cmd_install)
+
+    s = sub.add_parser("prices", help="bảng giá hai ngách và ví dụ báo giá gói")
+    s.add_argument("--pages", type=int, default=180)
+    s.set_defaults(func=cmd_prices)
+
+    s = sub.add_parser("convert", help="chuyển tệp gõ phông TCVN3/VNI (.VnTime) sang Unicode, làm tại máy")
+    s.add_argument("file")
+    s.add_argument("-o", "--output")
+    s.set_defaults(func=cmd_convert)
+
+    s = sub.add_parser("ads", help="quảng cáo: xem tình trạng, ghi khoản chi quảng cáo thuê ngoài (trích Quỹ mở rộng 49%%)")
+    ads_sub = s.add_subparsers(dest="ads_cmd", required=True)
+    ads_sub.add_parser("status")
+    sp = ads_sub.add_parser("spend", help="ghi khoản đã trả cho quảng cáo/agency (đồng, đã gồm thuế)")
+    sp.add_argument("vnd", type=int)
+    sp.add_argument("--memo")
+    sp.add_argument("--line", choices=["A", "B"], default="A")
+    s.set_defaults(func=cmd_ads)
 
     s = sub.add_parser("demo-ops", help="chạy thử trọn luồng tự động bằng dữ liệu giả (không cần khoá, không tốn tiền)")
     s.add_argument("--quiet", action="store_true")

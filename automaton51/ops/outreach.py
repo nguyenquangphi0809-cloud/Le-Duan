@@ -22,6 +22,12 @@ LEARNER = ["học viên", "hoc vien", "hv ", "nghiên cứu sinh", "nghien cuu s
 STAFF = ["giảng viên", "giang vien", "gv.", "ts.", "tiến sĩ", "tien si", "pgs", "gs.", "giáo sư", "giao su", "trưởng khoa",
          "phó khoa", "bộ môn", "bo mon", "biên tập", "bien tap", "tạp chí", "tap chi", "nghiên cứu viên", "lecturer", "professor",
          "editor", "researcher", "dr."]
+# Cấp ủy, chính quyền, hội nghề nghiệp, bảo tàng, lưu trữ: khách của ngách B (sử liệu địa phương)
+LOCAL_GOV = ["đảng ủy", "đảng uỷ", "dang uy", "huyện ủy", "huyện uỷ", "tỉnh ủy", "tỉnh uỷ", "thành ủy", "thành uỷ", "ubnd",
+             "ủy ban nhân dân", "uỷ ban nhân dân", "uy ban nhan dan", "hđnd", "tuyên giáo", "tuyen giao", "dân vận",
+             "văn phòng đảng", "mặt trận tổ quốc", "cựu chiến binh", "hội khoa học lịch sử", "hoi khoa hoc lich su",
+             "bảo tàng", "bao tang", "lưu trữ", "luu tru", "di tích", "di tich", "phòng văn hóa", "phòng văn hoá",
+             "bí thư", "bi thu", "chánh văn phòng", "biên soạn lịch sử", "bien soan lich su", "lịch sử đảng bộ"]
 ACADEMIC_ORG = ["đại học", "dai hoc", "học viện", "hoc vien", "trường", "truong", "viện", "vien ", "university", "institute",
                 "academy", "college", "khoa "]
 
@@ -30,10 +36,11 @@ ACADEMIC_ORG = ["đại học", "dai hoc", "học viện", "hoc vien", "trườn
 class Contact:
     email: str
     name: str
-    group: str            # A người giới thiệu | B khách tiềm năng quen | C không gửi
+    group: str            # A người giới thiệu | B khách tiềm năng quen | G cấp ủy, cơ quan, người biên soạn sử (ngách B) | C không gửi
     status: str = "pending"   # pending | sent | yes | no | replied | no_response
     sent_at: float = 0.0
     replied_at: float = 0.0
+    consent: str = ""     # bằng chứng đồng ý nhận quảng cáo: "thời điểm|Message-ID|trích lời trả lời"
 
 
 def classify_contact(name: str, email: str, org: str, title: str, labels: str, notes: str) -> str:
@@ -46,6 +53,8 @@ def classify_contact(name: str, email: str, org: str, title: str, labels: str, n
 
     if has(LEARNER):
         return "B"
+    if has(LOCAL_GOV) or domain.endswith(".gov.vn") or domain.endswith("dcs.vn"):
+        return "G"
     if has(STAFF):
         return "A"
     if domain.endswith(".edu.vn") or domain.endswith(".edu") or ".ac." in domain or has(ACADEMIC_ORG):
@@ -100,7 +109,7 @@ class OutreachStore:
 
     def import_rows(self, rows: list[dict], own_addresses: Iterable[str] = ()) -> dict[str, int]:
         own = {a.lower() for a in own_addresses if a}
-        counts = {"A": 0, "B": 0, "C": 0, "skipped": 0}
+        counts = {"A": 0, "B": 0, "G": 0, "C": 0, "skipped": 0}
         with file_lock(self.state.lock_path):
             data = self._load()
             for r in rows:
@@ -116,12 +125,24 @@ class OutreachStore:
 
     def get(self, email: str) -> Optional[Contact]:
         d = self._load()["contacts"].get((email or "").lower())
-        return Contact(**d) if d else None
+        return Contact(**{k: v for k, v in d.items() if k in Contact.__dataclass_fields__}) if d else None
 
     def update(self, contact: Contact) -> None:
         with file_lock(self.state.lock_path):
             data = self._load()
             data["contacts"][contact.email] = contact.__dict__
+            self._save(data)
+
+    def record_consent(self, email: str, name: str, group: str, consent: str) -> None:
+        """Người chưa có trong danh bạ (vd: khách nhận chuyển phông miễn phí) trả lời đồng ý nhận thông tin."""
+        email = (email or "").lower()
+        with file_lock(self.state.lock_path):
+            data = self._load()
+            if email in data["suppressed"]:
+                return
+            c = data["contacts"].get(email) or Contact(email=email, name=(name or email.split("@")[0])[:80], group=group).__dict__
+            c.update({"status": "yes", "consent": consent, "replied_at": float(self.clock())})
+            data["contacts"][email] = c
             self._save(data)
 
     def suppress(self, email: str) -> None:
@@ -138,11 +159,11 @@ class OutreachStore:
     def is_suppressed(self, email: str) -> bool:
         return (email or "").lower() in set(self._load()["suppressed"])
 
-    def due(self, limit: int) -> list[Contact]:
+    def due(self, limit: int, groups: tuple[str, ...] = ("A", "B", "G")) -> list[Contact]:
         data = self._load()
         sup = set(data["suppressed"])
-        pending = [Contact(**c) for c in data["contacts"].values()
-                   if c["status"] == "pending" and c["group"] in ("A", "B") and c["email"] not in sup]
+        pending = [Contact(**{k: v for k, v in c.items() if k in Contact.__dataclass_fields__}) for c in data["contacts"].values()
+                   if c["status"] == "pending" and c["group"] in groups and c["email"] not in sup]
         pending.sort(key=lambda c: (c.group, c.name))
         return pending[:max(0, limit)]
 

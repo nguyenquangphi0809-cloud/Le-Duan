@@ -44,3 +44,47 @@ def sample_thesis_paragraphs(n: int = 40) -> list[str]:
     base = ("Chương {i}. Luận văn phân tích vai trò của nguồn tư liệu lưu trữ trong nghiên cứu lịch sử địa phương, "
             "đối chiếu các văn bản gốc với hồi ký và báo chí đương thời để xác định độ tin cậy của từng nguồn.")
     return [base.format(i=i) for i in range(1, n + 1)]
+
+
+def make_xlsx(path: Path, sheets: list[tuple[str, list[list[str]]]]) -> Path:
+    """Tệp .xlsx tối thiểu hợp lệ (chuỗi nội tuyến), mỗi phần tử là (tên trang tính, các hàng)."""
+    ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    rel_ns = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    ct = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+          '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+          '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+          '<Default Extension="xml" ContentType="application/xml"/>'
+          '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+          + "".join(f'<Override PartName="/xl/worksheets/sheet{i}.xml" '
+                    'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+                    for i in range(1, len(sheets) + 1)) + '</Types>')
+    rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+            'Target="xl/workbook.xml"/></Relationships>')
+    wb = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook {ns} {rel_ns}><sheets>'
+          + "".join(f'<sheet name="{escape(name)}" sheetId="{i}" r:id="rId{i}"/>' for i, (name, _) in enumerate(sheets, 1))
+          + '</sheets></workbook>')
+    wb_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+               '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+               + "".join(f'<Relationship Id="rId{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+                         f'Target="worksheets/sheet{i}.xml"/>' for i in range(1, len(sheets) + 1)) + '</Relationships>')
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", ct)
+        z.writestr("_rels/.rels", rels)
+        z.writestr("xl/workbook.xml", wb)
+        z.writestr("xl/_rels/workbook.xml.rels", wb_rels)
+        for i, (_, rows) in enumerate(sheets, 1):
+            body = "".join("<row>" + "".join(f'<c t="inlineStr"><is><t>{escape(str(v))}</t></is></c>' for v in row) + "</row>"
+                           for row in rows)
+            z.writestr(f"xl/worksheets/sheet{i}.xml",
+                       f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet {ns}><sheetData>{body}</sheetData></worksheet>')
+    return path
+
+
+def sample_legacy_paragraphs() -> list[str]:
+    """Đoạn văn gõ bằng phông .VnTime (TCVN3) như trong tài liệu cũ."""
+    return ["B¸o c¸o tæng kÕt c«ng t¸c x©y dùng §¶ng n¨m 1998 cña §¶ng bé x· Phóc Lîi.",
+            "Trong n¨m, §¶ng bé ®· l·nh ®¹o nh©n d©n hoµn thµnh th¾ng lîi c¸c chØ tiªu kinh tÕ - x· héi."]

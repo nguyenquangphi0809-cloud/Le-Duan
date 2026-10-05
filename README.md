@@ -112,6 +112,18 @@ python3 -m automaton51 playbook apply tro-ly-hoc-thuat      # áp cho tác nhân
 
 Playbook được chép vào `state/STRATEGY.md` (AI đọc lại mỗi nhịp tim) và đặt nhiệm vụ khai sinh.
 
+### Hai ngách chạy song song (từ 10/2026)
+
+| | Ngách A — hồ sơ bảo vệ luận án | Ngách B — sử liệu địa phương |
+|---|---|---|
+| Khách | Nghiên cứu sinh, học viên cao học (khối Lịch sử, Lịch sử Đảng, Lý luận chính trị, Khoa học quân sự) | Người biên soạn lịch sử Đảng bộ, lịch sử truyền thống; cấp ủy, cơ quan xã/phường mới sau sắp xếp 2025 |
+| Sản phẩm | Định dạng, tài liệu tham khảo, quyển tóm tắt luận án, bản tiếng Anh của tóm tắt, trang đóng góp mới Việt – Anh, luyện phản biện; gói giảm 15% | Chuyển phông .VnTime/VNI **miễn phí** (làm tại máy, không dùng AI), số hoá bản in cũ, biên niên hợp nhất + bảng chỗ nguồn ghi khác nhau + bảng mốc truyền thống, biên tập bản thảo + bảng tra cứu |
+| Kênh | Trang Facebook (được chạy quảng cáo), email người quen nhóm A, B | Email người quen nhóm G (cấp ủy, cơ quan), bài Trang tự nhiên (không quảng cáo trả tiền), phiếu đề xuất cho dự án lớn |
+
+Bảng giá đầy đủ (khảo sát thị trường 10/2026): `python3 -m automaton51 prices` hoặc
+[`playbooks/launch-kit/02-bang-gia-dich-vu.md`](playbooks/launch-kit/02-bang-gia-dich-vu.md). Bài đăng và thư giới thiệu
+được chia tự động theo lãi gộp 60 ngày của từng ngách (mỗi ngách tối thiểu 25%); báo cáo hằng ngày ghi lãi gộp từng ngách.
+
 ---
 
 ## Tự động hoàn toàn: bạn chỉ chỉ định tài khoản nhận tiền
@@ -122,18 +134,21 @@ Bật bằng `automaton51 setup`. Từ đó hệ thống tự chạy toàn bộ 
 |---|---|
 | Tìm khách | Gửi **một** thư xin phép cho người quen trong danh bạ (tối đa 25 thư/ngày, 8–20 giờ), tự đăng 1 bài/ngày lên Trang Facebook |
 | Tiếp nhận | Đọc thư gửi tới địa chỉ kinh doanh `ten+hocthuat@gmail.com`, **không đụng tới thư cá nhân** |
-| Sàng lọc | Từ chối lịch sự yêu cầu viết hộ, "hạ đạo văn", bịa số liệu; gửi checklist cho người xin |
+| Sàng lọc | Từ chối lịch sự yêu cầu viết hộ, "làm luận văn trọn gói", "hạ đạo văn", bịa số liệu; **từ chối tài liệu mật và hồ sơ cá nhân** (kể cả dấu "MẬT" gõ phông cũ); gửi checklist cho người xin |
 | Báo giá | Đếm trang, tính giá bằng bảng giá cố định trong mã, gửi mã QR VietQR có sẵn số tiền và mã đơn |
 | Thu tiền | Dò giao dịch qua SePay, khớp mã đơn, ghi doanh thu, chia **51 % / 49 %**; khách quên ghi mã thì tự khớp theo đúng số tiền + tên người chuyển, không chắc thì email hỏi bạn; tiền cá nhân bị bỏ qua |
-| Làm việc | Claude xử lý tệp Word trong môi trường chạy mã (định dạng, tài liệu tham khảo, hiệu đính có Track Changes, tóm tắt tiếng Anh, câu hỏi phản biện + slide) |
+| Làm việc | Chuyển phông cũ sang Unicode tại máy (miễn phí); Claude xử lý từng phần của đơn trong môi trường chạy mã (định dạng, tài liệu tham khảo, hiệu đính có Track Changes, quyển tóm tắt và bản tiếng Anh, trang đóng góp mới, câu hỏi phản biện + slide, số hoá bản scan, biên niên Excel); phần nào đạt thì giữ, chỉ làm lại phần chưa đạt |
 | Kiểm tra | Tự kiểm tra trước khi giao: không thêm nội dung, không làm mất chữ, hiệu đính phải có Track Changes, tóm tắt phải là tiếng Anh; không đạt thì làm lại, 3 lần vẫn không đạt thì báo khách sẽ hoàn tiền; hết tiền API hay mất mạng thì giữ đơn chờ, không hoàn tiền |
 | Giao hàng | Gửi tệp kết quả và báo cáo thay đổi qua email; sửa miễn phí 1 lần trong 14 ngày |
-| Báo cáo | 8 giờ sáng mỗi ngày gửi bạn một email: tiền về, đơn, quỹ 51 % của bạn, việc cần làm |
+| Quảng cáo | Thư quảng cáo có nhãn [QC] và thông tin người gửi (Nghị định 91/2020); tuỳ chọn chạy quảng cáo Facebook mỗi 7 ngày cho bài ngách A tốt nhất, **chỉ trích Quỹ mở rộng 49 %**, có trần, đã tính 10% VAT ([hướng dẫn](playbooks/launch-kit/10-quang-cao-tu-dong-va-thue-ngoai.md)) |
+| Dự án lớn | Đơn ngách B trên 400 trang: tự gửi phiếu đề xuất (Word) cho cơ quan và báo bạn "[CƠ HỘI]" để ký hợp đồng |
+| Báo cáo | 8 giờ sáng mỗi ngày gửi bạn một email: tiền về, đơn, quỹ 51 % của bạn, lãi gộp từng ngách, tiền quảng cáo, việc cần làm |
 | Bảo mật | Xoá bản thảo sau 30 ngày; xoá tệp khỏi máy chủ Anthropic ngay sau khi xử lý; không lưu số điện thoại trong danh bạ |
 
 **Việc của bạn chỉ có ba:** (1) chỉ định tài khoản nhận tiền khi cài đặt; (2) một lần duy nhất tạo các khoá kết nối;
 (3) khi hệ thống gửi email "[CẦN BẠN]" (hiếm): chuyển hoàn tiền cho khách, xác nhận một khoản tiền khách quên ghi mã đơn,
-hoặc nạp thêm tiền Claude (bật Auto-reload thì không cần).
+hoặc nạp thêm tiền Claude (bật Auto-reload thì không cần). Riêng email "[CƠ HỘI]" (dự án lớn với cơ quan) cần bạn ký
+hợp đồng, xuất hoá đơn: cơ quan nhà nước không trả trước qua mã QR.
 
 ### Cài đặt một lần (khoảng 45 phút)
 
@@ -158,6 +173,10 @@ python3 -m automaton51 setup            # hỏi Gmail, tên bạn, NGÂN HÀNG +
 python3 -m automaton51 doctor           # kiểm tra Claude, Gmail, SePay, Facebook; in mã QR mẫu để bạn quét thử
 python3 -m automaton51 outreach import danh-ba.csv   # tuỳ chọn: CSV xuất từ contacts.google.com
 python3 -m automaton51 run --serve      # chạy mãi; chạy 24/7 xem deploy/README.md
+python3 -m automaton51 prices           # bảng giá hai ngách, ví dụ báo giá gói
+python3 -m automaton51 convert tep.docx # tự chuyển một tệp .VnTime/VNI sang Unicode (làm tại máy)
+python3 -m automaton51 ads status       # quảng cáo: tình trạng, các đợt đã chạy, tổng đã chi từ Quỹ mở rộng
+python3 -m automaton51 ads spend 2500000 --memo "Freelancer tháng 11"   # ghi khoản trả cho người chạy quảng cáo thuê
 ```
 
 Chưa có khoá vẫn xem được toàn bộ luồng bằng dữ liệu giả, không tốn tiền: `python3 -m automaton51 demo-ops`.

@@ -11,14 +11,44 @@ from typing import Any, Optional
 
 from ..state import StateDir, file_lock
 
+# Hai ngách chạy song song trên cùng một hệ thống:
+#   A — hồ sơ bảo vệ luận án (nghiên cứu sinh, học viên cao học)
+#   B — số hoá và biên soạn sử liệu địa phương (người biên soạn lịch sử Đảng bộ, lịch sử truyền thống xã/phường)
+# accepts: đuôi tệp xử lý được; max_pages: giới hạn mỗi đơn (đơn lớn hơn -> báo giá dự án riêng).
+DOC = (".docx",)
+DOC_PDF = (".docx", ".pdf")
+SCAN = (".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp")
 SERVICES: dict[str, dict[str, Any]] = {
-    "DF": {"name": "Định dạng theo mẫu trường / Thông tư", "hours": 24},
-    "TK": {"name": "Chuẩn hoá tài liệu tham khảo và đối chiếu trích dẫn", "hours": 24},
-    "HD": {"name": "Hiệu đính ngôn ngữ học thuật (Track Changes)", "hours": 72},
-    "AB": {"name": "Tóm tắt tiếng Anh, từ khoá, thư gửi tạp chí", "hours": 24},
-    "PB": {"name": "Bộ câu hỏi luyện phản biện và slide bảo vệ", "hours": 72},
+    "DF": {"name": "Định dạng theo mẫu trường / Thông tư", "hours": 24, "line": "A", "accepts": DOC},
+    "TK": {"name": "Chuẩn hoá tài liệu tham khảo và đối chiếu trích dẫn", "hours": 24, "line": "A", "accepts": DOC},
+    "HD": {"name": "Hiệu đính ngôn ngữ học thuật (Track Changes)", "hours": 72, "line": "A", "accepts": DOC},
+    "AB": {"name": "Tóm tắt tiếng Anh, từ khoá, thư gửi tạp chí", "hours": 24, "line": "A", "accepts": DOC_PDF},
+    "TT": {"name": "Biên tập quyển tóm tắt luận án từ toàn văn (có đối chiếu trang)", "hours": 72, "line": "A", "accepts": DOC_PDF},
+    "TA": {"name": "Bản tiếng Anh của quyển tóm tắt luận án", "hours": 48, "line": "A", "accepts": DOC_PDF},
+    "DG": {"name": "Trang thông tin đóng góp mới của luận án (Việt – Anh)", "hours": 24, "line": "A", "accepts": DOC_PDF},
+    "PB": {"name": "Bộ câu hỏi luyện phản biện và slide bảo vệ", "hours": 72, "line": "A", "accepts": DOC_PDF},
+    "CP": {"name": "Chuyển phông TCVN3/VNI sang Unicode", "hours": 1, "line": "B", "accepts": (".docx", ".txt")},
+    "SH": {"name": "Số hoá bản scan/ảnh chụp: nhận dạng chữ, xuất Word Unicode", "hours": 72, "line": "B", "accepts": SCAN,
+           "max_pages": 60},
+    "NB": {"name": "Biên niên sự kiện hợp nhất và bảng đối chiếu chỗ các nguồn ghi khác nhau", "hours": 120, "line": "B",
+           "accepts": (".docx", ".pdf", ".txt")},
+    "BT": {"name": "Biên tập kỹ thuật bản thảo lịch sử địa phương và bảng tra cứu nhân danh, địa danh", "hours": 120,
+           "line": "B", "accepts": DOC},
 }
+# Gói: đặt đủ các dịch vụ trong gói thì tự giảm giá
+BUNDLES: dict[str, dict[str, Any]] = {
+    "BV": {"name": "Gói sẵn sàng bảo vệ luận án tiến sĩ", "items": ["DF", "TK", "TT", "TA", "DG", "PB"], "discount": 0.15,
+           "line": "A"},
+    "LV": {"name": "Gói nộp luận văn thạc sĩ", "items": ["DF", "TK", "AB"], "discount": 0.10, "line": "A"},
+    "XM": {"name": "Gói hợp nhất sử liệu xã mới (số hoá + biên niên)", "items": ["SH", "NB"], "discount": 0.10, "line": "B"},
+}
+LINES = {"A": "Hồ sơ bảo vệ luận án", "B": "Số hoá và biên soạn sử liệu địa phương"}
+CP_FREE_PAGES = 50
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # bỏ 0/O, 1/I dễ nhầm
+
+
+def _round(p: float) -> int:
+    return int(round(p / 10_000.0) * 10_000)
 
 
 def price_vnd(service: str, pages: int) -> int:
@@ -28,18 +58,91 @@ def price_vnd(service: str, pages: int) -> int:
     elif service == "TK":
         p = min(800_000, 300_000 + 4_000 * max(0, pages - 60))
     elif service == "HD":
-        p = max(500_000, 25_000 * pages)
+        p = max(400_000, 12_000 * pages)
     elif service == "AB":
-        p = 450_000
+        p = 300_000
     elif service == "PB":
         p = min(1_500_000, 900_000 + 3_000 * max(0, pages - 80))
+    elif service == "TT":
+        p = min(2_000_000, 1_500_000 + 5_000 * max(0, pages - 150))
+    elif service == "TA":
+        p = 1_500_000
+    elif service == "DG":
+        p = 400_000
+    elif service == "CP":
+        return 0 if pages <= CP_FREE_PAGES else max(50_000, _round(1_000 * pages))
+    elif service == "SH":
+        p = max(300_000, 6_000 * pages)
+    elif service == "NB":
+        p = max(2_000_000, 15_000 * pages)
+    elif service == "BT":
+        p = max(3_000_000, 30_000 * pages)
     else:
         raise ValueError(f"Dịch vụ không hỗ trợ: {service}")
-    return int(round(p / 10_000.0) * 10_000)
+    return _round(p)
+
+
+PRICE_TEXT = {
+    "DF": "400.000–900.000 đ (theo số trang)",
+    "TK": "300.000–800.000 đ (theo số trang)",
+    "HD": "12.000 đ/trang, tối thiểu 400.000 đ",
+    "AB": "300.000 đ",
+    "PB": "900.000–1.500.000 đ (theo số trang)",
+    "TT": "1.500.000–2.000.000 đ (theo số trang)",
+    "TA": "1.500.000 đ",
+    "DG": "400.000 đ",
+    "CP": f"miễn phí tới {CP_FREE_PAGES} trang; trên {CP_FREE_PAGES} trang 1.000 đ/trang",
+    "SH": "6.000 đ/trang, tối thiểu 300.000 đ (tối đa 60 trang mỗi lần gửi)",
+    "NB": "15.000 đ/trang tài liệu nguồn, tối thiểu 2.000.000 đ",
+    "BT": "30.000 đ/trang, tối thiểu 3.000.000 đ",
+}
+BUNDLE_TEXT = {
+    "BV": "giảm 15% khi đặt đủ 6 dịch vụ: định dạng, tài liệu tham khảo, quyển tóm tắt, bản tiếng Anh của tóm tắt, "
+          "trang đóng góp mới, luyện phản biện (luận án 180 trang ≈ 5.470.000 đ thay vì 6.430.000 đ)",
+    "LV": "giảm 10% cho định dạng + tài liệu tham khảo + tóm tắt tiếng Anh (luận văn 100 trang ≈ 1.220.000 đ)",
+    "XM": "giảm 10% cho số hoá + biên niên hợp nhất cùng một bộ tài liệu",
+}
+
+
+def hours_text(hours: int) -> str:
+    return f"{hours} giờ" if hours < 48 else f"{hours // 24} ngày"
+
+
+def expand_services(codes: list[str]) -> list[str]:
+    """Thay mã gói (BV, LV, XM) bằng các dịch vụ trong gói, bỏ trùng, xếp theo thứ tự của bảng dịch vụ."""
+    wanted: set[str] = set()
+    for c in codes:
+        wanted.update(BUNDLES[c]["items"] if c in BUNDLES else [c])
+    return [s for s in SERVICES if s in wanted]
+
+
+def bundles_in(services: list[str]) -> list[str]:
+    """Các gói được giảm giá; mỗi dịch vụ chỉ được giảm trong một gói (gói lớn xét trước)."""
+    used: set[str] = set()
+    out: list[str] = []
+    for b, spec in sorted(BUNDLES.items(), key=lambda kv: -len(kv[1]["items"])):
+        if all(s in services and s not in used for s in spec["items"]):
+            out.append(b)
+            used |= set(spec["items"])
+    return out
 
 
 def quote_total(services: list[str], pages: int) -> int:
-    return sum(price_vnd(s, pages) for s in services)
+    services = expand_services(services)
+    total = sum(price_vnd(s, pages) for s in services)
+    for b in bundles_in(services):
+        spec = BUNDLES[b]
+        total -= _round(sum(price_vnd(s, pages) for s in spec["items"]) * spec["discount"])
+    return max(0, total)
+
+
+def line_of(services: list[str]) -> str:
+    """Ngách của đơn: B nếu có dịch vụ ngách B, ngược lại A."""
+    return "B" if any(SERVICES.get(s, {}).get("line") == "B" for s in services) else "A"
+
+
+def max_pages_for(services: list[str], default: int) -> int:
+    return min([default] + [int(SERVICES[s]["max_pages"]) for s in services if s in SERVICES and SERVICES[s].get("max_pages")])
 
 
 def estimate_pages(path: Path) -> int:

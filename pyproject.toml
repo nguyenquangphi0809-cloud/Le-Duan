@@ -15,7 +15,7 @@ dependencies = ["anthropic>=1.0"]
 automaton51 = "automaton51.cli:main"
 
 [tool.setuptools]
-packages = ["automaton51", "automaton51.brain"]
+packages = ["automaton51", "automaton51.brain", "automaton51.ops"]
 
 [tool.setuptools.package-data]
 automaton51 = ["PROTECTED.sha256"]

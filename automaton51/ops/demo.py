@@ -14,7 +14,7 @@ from .engine import Operations
 from .fulfillment import SimFulfiller
 from .mail import Attachment, FakeMailClient
 from .payments import FakePaymentSource
-from .sample import make_docx, sample_thesis_paragraphs
+from .sample import make_docx, sample_legacy_paragraphs, sample_thesis_paragraphs
 
 
 def run_demo(verbose: bool = True) -> int:
@@ -56,8 +56,10 @@ def run_demo(verbose: bool = True) -> int:
         {"name": "Trần Thị Bình", "email": "binh.tran@hnue.edu.vn", "org": "Đại học Sư phạm Hà Nội", "title": "Giảng viên", "labels": "", "notes": ""},
         {"name": "Lê Văn Cường", "email": "cuong.ncs@gmail.com", "org": "", "title": "Nghiên cứu sinh", "labels": "", "notes": ""},
         {"name": "Phạm Văn Dũng", "email": "dung.banhang@gmail.com", "org": "Cửa hàng điện máy", "title": "", "labels": "", "notes": ""},
+        {"name": "Lê Văn Hà", "email": "vanphong.dangUy@gmail.com", "org": "Đảng ủy phường Phúc Lợi", "title": "Chánh văn phòng",
+         "labels": "", "notes": ""},
     ], own_addresses=[cfg.email_address, cfg.email_alias])
-    tick("Khởi động: ghi mốc hộp thư, gửi thư xin phép cho danh bạ (nhóm C bị bỏ qua)")
+    tick("Khởi động: gửi thư xin phép [QC] cho danh bạ — nhóm A, B (ngách A), nhóm G (ngách B); nhóm C bị bỏ qua")
 
     thesis = make_docx(root / "luan_van_khach.docx", sample_thesis_paragraphs(60), pages=84)
     mail.deliver("hocvien.an@gmail.com", cfg.email_alias, "Nhờ định dạng luận văn",
@@ -67,6 +69,12 @@ def run_demo(verbose: bool = True) -> int:
     mail.deliver("sinhvien@gmail.com", cfg.email_alias, "checklist", "Cho em xin checklist 20 lỗi với ạ")
     mail.deliver("ban.than@gmail.com", cfg.email_address, "Cuối tuần đi cafe?", "Thư cá nhân gửi thẳng vào Gmail, không gửi tới địa chỉ kinh doanh.")
     tick("Khách gửi thư: báo giá tự động kèm mã QR; từ chối yêu cầu viết hộ; gửi checklist; thư cá nhân không bị đụng tới")
+
+    legacy = make_docx(root / "bao_cao_1998.docx", sample_legacy_paragraphs())
+    mail.deliver("vanphong.dangUy@gmail.com", cfg.email_alias, "Nhờ chuyển phông",
+                 "Tệp báo cáo cũ gõ phông .VnTime mở ra bị lỗi phông, nhờ chuyển sang Unicode.",
+                 [Attachment("bao_cao_1998.docx", legacy.read_bytes())], from_name="Lê Văn Hà")
+    tick("Ngách B: văn phòng Đảng ủy gửi tệp .VnTime — chuyển phông MIỄN PHÍ ngay tại máy, không dùng AI, không báo giá")
 
     order = ops.orders.all()[0]
     bank.add(order.price_vnd, f"NGUYEN THI AN chuyen tien {order.code.lower()}")
