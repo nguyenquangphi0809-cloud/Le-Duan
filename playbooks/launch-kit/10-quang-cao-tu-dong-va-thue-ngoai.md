@@ -59,7 +59,7 @@ Lưu ý: nhiều bảng "giá click ngành giáo dục" trên blog Việt Nam l�
 
 | Phương án | Tổng/tháng | Khi nào chọn |
 |---|---|---|
-| **Tự chạy bằng hệ thống** | tối đa khoảng 3,1 triệu (700.000 đ/tuần + thuế), tuỳ Quỹ mở rộng | 2–3 tháng đầu: đo chi phí trên mỗi khách thật |
+| **Tự chạy bằng hệ thống** | tối đa 770.000 đ mỗi 7 ngày (đã gồm thuế), tức khoảng 3,3 triệu/tháng, tuỳ Quỹ mở rộng | 2–3 tháng đầu: đo chi phí trên mỗi khách thật |
 | **Freelancer theo KPI** | 6,5–10 triệu (4–6 triệu quảng cáo + phí 2–3 triệu + thưởng theo khách) | Khi đã biết bài nào ra khách, muốn tăng tốc |
 | **Agency** | 10–12 triệu (13–17 triệu nếu thuê thêm chăm sóc Trang) | Khi Quỹ mở rộng đều đặn trên 10 triệu/tháng và chi phí/khách đã kiểm chứng |
 
