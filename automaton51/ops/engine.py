@@ -811,13 +811,23 @@ class Operations:
                     code = order.code if len(groups) == 1 else f"{order.code}_{tag}"
                     out_dir = work if len(groups) == 1 else work / tag
                     group_inputs = list(inputs)
+                    qa_inputs = list(inputs)  # luôn đối chiếu với tệp gốc của khách
+                    if tag == "TA" and "TT" in order.services:
+                        # bản tiếng Anh dịch đúng quyển tóm tắt vừa biên tập trong cùng đơn: phải chờ phần TT đạt trước
+                        made = [Path(p) for p in (done.get("TT") or {}).get("outputs", [])
+                                if Path(p).name.upper().startswith("TOM_TAT_LUAN_AN") and Path(p).exists()]
+                        if not made:
+                            issues.append("[TA] chờ quyển tóm tắt tiếng Việt đạt kiểm tra")
+                            continue
+                        group_inputs += made
+                        qa_inputs += made
                     if is_rev:  # lần sửa: kèm bản đã giao của CHÍNH phần này (không lẫn tệp của phần khác)
                         prev = delivered.get(tag) or (order.outputs if len(groups) == 1 else [])
                         group_inputs += [Path(p) for p in prev
                                          if Path(p).suffix.lower() in (".docx", ".pptx", ".xlsx") and Path(p).exists()]
                     try:
                         result = self.fulfiller.run(code, svcs, group_inputs, out_dir, order.customer_notes, order.citation_style, notes)
-                        qa = qa_check(svcs, inputs, result.outputs, result.report)  # luôn đối chiếu với tệp gốc của khách
+                        qa = qa_check(svcs, qa_inputs, result.outputs, result.report)
                     except FulfillmentError as exc:
                         result, qa = None, QAResult(False, [f"lỗi xử lý: {exc}"])
                     except Exception as exc:  # noqa: BLE001

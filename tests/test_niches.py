@@ -182,6 +182,12 @@ class QATests(unittest.TestCase):
         left = legacy_docx(self.root / "UNICODE_x.docx", [[("Hµ Néi", ".VnTime")]])
         self.assertFalse(qa_check(["CP"], [left], [left], "Báo cáo").passed)
 
+    def test_english_summary_must_translate_whole_summary(self):
+        summary = make_docx(self.root / "TOM_TAT_LUAN_AN_X_TT.docx", sample_thesis_paragraphs(150))  # khoảng 5.400 chữ
+        short = make_docx(self.root / "TOM_TAT_TIENG_ANH_LUAN_AN_X.docx", ["This chapter examines archival sources in local history."] * 40)
+        res = qa_check(["TA"], [self.src, summary], [short], "[CẦN BỔ SUNG] phần còn lại")
+        self.assertTrue(any("chưa dịch trọn" in i for i in res.issues), res.issues)
+
     def test_groups_skills_and_vision(self):
         self.assertEqual(plan_groups(["DF", "TK", "TT", "TA", "DG", "PB"]),
                          [("SUA", ["DF", "TK"]), ("TT", ["TT"]), ("TA", ["TA"]), ("DG", ["DG"]), ("PB", ["PB"])])
@@ -203,6 +209,7 @@ class FailOnce(SimFulfiller):
             self.failed = True
             self.calls += 1
             self.services_seen.append(list(services))
+            self.inputs_seen.append([Path(p).name for p in inputs])
             raise FulfillmentError("lỗi giả lập một phần")
         return super().run(code, services, inputs, out_dir, *a, **kw)
 
@@ -280,11 +287,14 @@ class EngineTests(unittest.TestCase):
         bank.add(order.price_vnd, order.code)
         step(auto, clock)
         self.assertEqual(ops.orders.get(order.code).status, "paid")  # phần TT lỗi: chờ làm lại
-        self.assertEqual(ops.fulfiller.services_seen, [["DF", "TK"], ["TT"], ["TA"], ["DG"], ["PB"]])
+        # bản tiếng Anh (TA) chờ quyển tóm tắt tiếng Việt đạt rồi mới dịch, không chạy trên toàn văn
+        self.assertEqual(ops.fulfiller.services_seen, [["DF", "TK"], ["TT"], ["DG"], ["PB"]])
         step(auto, clock)
         order = ops.orders.get(order.code)
         self.assertEqual(order.status, "delivered")
-        self.assertEqual(ops.fulfiller.services_seen[5:], [["TT"]])  # chỉ làm lại phần chưa đạt
+        self.assertEqual(ops.fulfiller.services_seen[4:], [["TT"], ["TA"]])  # chỉ làm lại phần chưa đạt, rồi dịch
+        ta_inputs = ops.fulfiller.inputs_seen[5]
+        self.assertTrue(any(n.startswith(f"TOM_TAT_LUAN_AN_{order.code}") for n in ta_inputs), ta_inputs)
         names = {p.name for p in mail.sent[-1].attachments}
         for prefix in ("KET_QUA_", "TOM_TAT_LUAN_AN_", "TOM_TAT_TIENG_ANH_LUAN_AN_", "THONG_TIN_DONG_GOP_MOI_", "SLIDE_BAO_VE_"):
             self.assertTrue(any(n.startswith(prefix) for n in names), prefix)

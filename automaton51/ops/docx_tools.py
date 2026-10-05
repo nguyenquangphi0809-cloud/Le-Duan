@@ -241,7 +241,13 @@ def _check_new_services(res: "QAResult", services: list[str], inputs: list[Path]
             res.metrics.update({"ta_words": stats["ab_words"], "ta_diacritic_ratio": stats["ab_diacritic_ratio"]})
             if not eng and _diacritic_ratio(text) > 0.06:
                 res.issues.append("bản tóm tắt tiếng Anh còn nhiều tiếng Việt")
-            if stats["ab_words"] < 3000 and "cần bổ sung" not in (report or "").lower():
+            source = [p for p in inputs if Path(p).name.upper().startswith("TOM_TAT_LUAN_AN")]
+            if source:  # dịch quyển tóm tắt vừa biên tập: phải dịch trọn, không được ghi "cần bổ sung" cho xong
+                need = max(3000, int(0.4 * _word_count(read_text_any(source[0]))))
+                res.metrics["ta_min_words"] = need
+                if stats["ab_words"] < need:
+                    res.issues.append(f"bản tóm tắt tiếng Anh chưa dịch trọn ({stats['ab_words']} < {need} chữ)")
+            elif stats["ab_words"] < 3000 and "cần bổ sung" not in (report or "").lower():
                 res.issues.append("bản tóm tắt tiếng Anh quá ngắn")
     if "DG" in services:
         outs = _named(outputs, "THONG_TIN_DONG_GOP_MOI", (".docx", ".md", ".txt"))

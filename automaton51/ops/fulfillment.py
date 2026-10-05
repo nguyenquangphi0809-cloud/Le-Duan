@@ -72,8 +72,9 @@ SERVICE_INSTRUCTIONS = {
            "số liệu, nhận định CÓ TRONG luận án; không thêm nhận định, kết quả, tài liệu mới; phần luận án không có (ví dụ danh mục công "
            "trình đã công bố) ghi [CẦN BỔ SUNG]. Trong BAO_CAO_<MÃ>.md lập bảng đối chiếu: mỗi mục của bản tóm tắt lấy từ trang/mục nào "
            "của luận án. Tệp: TOM_TAT_LUAN_AN_<MÃ>.docx"),
-    "TA": ("Dịch sang tiếng Anh học thuật QUYỂN TÓM TẮT LUẬN ÁN khách gửi (nếu khách chỉ gửi toàn văn: dịch bản tóm tắt tiếng Việt "
-           "có trong hồ sơ; không có thì báo [CẦN BỔ SUNG] trong báo cáo, không tự viết tóm tắt). Dịch trung thành, đủ ý, giữ cấu trúc, "
+    "TA": ("Dịch sang tiếng Anh học thuật QUYỂN TÓM TẮT LUẬN ÁN. Nếu trong các tệp có TOM_TAT_LUAN_AN_* (bản tóm tắt tiếng Việt "
+           "vừa biên tập trong cùng đơn) thì dịch ĐÚNG tệp đó, trọn vẹn từ đầu đến cuối; nếu không có, dịch quyển tóm tắt tiếng Việt "
+           "khách gửi; không có cả hai thì ghi [CẦN BỔ SUNG] trong báo cáo, không tự viết tóm tắt. Dịch trung thành, đủ ý, giữ cấu trúc, "
            "bảng biểu, số liệu; thống nhất thuật ngữ (lập bảng thuật ngữ Việt – Anh trong BAO_CAO_<MÃ>.md, ưu tiên cách dịch đã dùng "
            "trong các ấn phẩm chính thức). Giữ nguyên tên riêng Việt Nam có dấu. Tệp: TOM_TAT_TIENG_ANH_LUAN_AN_<MÃ>.docx"),
     "DG": ("Soạn TRANG THÔNG TIN VỀ NHỮNG ĐÓNG GÓP MỚI CỦA LUẬN ÁN: một trang tiếng Việt và một trang tiếng Anh (bản dịch trung thành), "
@@ -279,6 +280,7 @@ class SimFulfiller:
         self.fail_times = fail_times
         self.calls = 0
         self.services_seen: list[list[str]] = []
+        self.inputs_seen: list[list[str]] = []
 
     def run(self, code: str, services: list[str], inputs: list[Path], out_dir: Path, customer_notes: str = "",
             citation_style: str = "", revision_notes: str = "") -> FulfillmentResult:
@@ -287,6 +289,7 @@ class SimFulfiller:
         from .sample import make_docx, make_xlsx
         self.calls += 1
         self.services_seen.append(list(services))
+        self.inputs_seen.append([Path(p).name for p in inputs])
         if self.fail_times > 0:
             self.fail_times -= 1
             raise FulfillmentError("lỗi giả lập")
@@ -318,9 +321,13 @@ class SimFulfiller:
             body = (source_paras * (1 + 6000 // max(1, len(" ".join(source_paras).split()))))[: max(1, len(source_paras)) * 40]
             outputs.append(make_docx(out_dir / f"TOM_TAT_LUAN_AN_{code}.docx", body or ["[CẦN BỔ SUNG]"]))
         if "TA" in services:
-            outputs.append(make_docx(out_dir / f"TOM_TAT_TIENG_ANH_LUAN_AN_{code}.docx",
-                                     ["This dissertation examines the role of archival sources in local history research and "
-                                      "compares original documents with memoirs and contemporary newspapers."] * 160))
+            made = [p for p in inputs if Path(p).name.upper().startswith("TOM_TAT_LUAN_AN")]
+            vi_words = len(read_text_any(made[-1]).split()) if made else 0
+            sentence = ("This dissertation examines the role of archival sources in local history research and "
+                        "compares original documents with memoirs and contemporary newspapers.")
+            # bản dịch tiếng Anh thường bằng khoảng 0,6–0,75 số âm tiết tiếng Việt
+            n = max(160, int(0.65 * vi_words / len(sentence.split())) + 1)
+            outputs.append(make_docx(out_dir / f"TOM_TAT_TIENG_ANH_LUAN_AN_{code}.docx", [sentence] * n))
         if "DG" in services:
             vi = ("Luận án làm rõ vai trò của nguồn tư liệu lưu trữ trong nghiên cứu lịch sử địa phương, đối chiếu văn bản gốc "
                   "với hồi ký và báo chí đương thời để xác định độ tin cậy của từng nguồn tư liệu.")
